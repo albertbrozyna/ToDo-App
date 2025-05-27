@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
@@ -53,6 +54,7 @@ import com.example.todo.R
 import java.util.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.todo.AppDatabase
@@ -85,9 +87,19 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     onAddTaskClick: () -> Unit
 ) {
+
+    val context = LocalContext.current
+    val db = remember { DatabaseProvider.getDatabase(context) }
+    var tasks = remember { mutableStateOf<List<Task>>(emptyList()) }
+
+
+    // Fetching tasks from database
+    LaunchedEffect(Unit) {
+        tasks.value = db.taskDao().getAllTasks()
+    }
+
     Scaffold(
         topBar = { TopBar() },
-
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onAddTaskClick,
@@ -96,18 +108,49 @@ fun HomeScreen(
                 Icon(imageVector = Icons.Default.Add, contentDescription = "Add Task")
             }
         }
-
-
     ) { paddingValues ->
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(paddingValues = paddingValues),
-            contentAlignment = Alignment.Center
-        ) {
+        if (tasks.value.isEmpty()) {    // If no tasks show a text
+            Box(
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("No tasks yet.")
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(tasks.value) { task ->
+                    TaskCard(task)
+                }
+            }
+        }
+    }
+}
 
-
-
+@Composable
+fun TaskCard(task: Task) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                color = colorResource(id = R.color.primary_blue).copy(alpha = 0.1f),
+                shape = MaterialTheme.shapes.medium
+            )
+            .padding(16.dp)
+    ) {
+        Text(text = task.title, style = MaterialTheme.typography.titleMedium)
+        Text(text = task.description, style = MaterialTheme.typography.bodyMedium)
+        Text(text = "Due: ${Date(task.dueTime)}", style = MaterialTheme.typography.bodySmall)
+        Text(text = "Category: ${task.category}", style = MaterialTheme.typography.bodySmall)
+        if (task.notify) {
+            Text(text = "🔔 Notifications On", style = MaterialTheme.typography.bodySmall)
         }
     }
 }
