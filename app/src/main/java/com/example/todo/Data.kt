@@ -11,6 +11,20 @@ import androidx.room.Room
 
 import androidx.room.*
 
+
+@Entity(tableName = "tasks")
+data class Task(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val title: String,
+    val description: String,
+    val creationTime: Long,
+    val dueTime: Long,
+    val isCompleted: Boolean,
+    val notify: Boolean,
+    val category: String,
+    val attachments: List<String> // Store file paths
+)
+
 @Dao
 interface TaskDao {
 
@@ -30,18 +44,6 @@ interface TaskDao {
     suspend fun getTaskById(taskId: Int): Task?
 }
 
-@Entity(tableName = "tasks")
-data class Task(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val title: String,
-    val description: String,
-    val creationTime: Long,
-    val dueTime: Long,
-    val isCompleted: Boolean,
-    val notify: Boolean,
-    val category: String,
-    val attachments: List<String> // Store file paths
-)
 
 class Converters {
     @TypeConverter

@@ -1,5 +1,9 @@
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.Context
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,7 +23,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.material3.TopAppBar
 import androidx.navigation.compose.NavHost
@@ -29,6 +32,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -38,6 +42,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
@@ -46,8 +51,18 @@ import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.unit.dp
 import com.example.todo.R
 import java.util.*
-
-
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.Alignment
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.todo.AppDatabase
+import com.example.todo.DatabaseProvider
+import com.example.todo.Task
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 @Composable
 fun ToDoApp() {
@@ -90,6 +105,8 @@ fun HomeScreen(
                 .padding(paddingValues = paddingValues),
             contentAlignment = Alignment.Center
         ) {
+
+
 
         }
     }
@@ -143,6 +160,7 @@ fun AddTaskScreen(onBack: () -> Unit) {
     var categoryInput = remember { mutableStateOf("") }
     var dueDate = remember { mutableStateOf("") }
     var notify = remember { mutableStateOf(false) }
+    var attachments = remember { mutableStateListOf<String>() }
 
     var expanded = remember { mutableStateOf(false) }
     val categories = listOf("Work", "Personal", "Shopping", "Other")
@@ -151,6 +169,12 @@ fun AddTaskScreen(onBack: () -> Unit) {
     }
     val context = LocalContext.current
     val calendar = Calendar.getInstance()
+
+    // Database
+    val db = DatabaseProvider.getDatabase(context)
+    val taskDao = db.taskDao()
+
+    val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
 
     // Time Picker
     val timePickerDialog = TimePickerDialog(
@@ -163,6 +187,24 @@ fun AddTaskScreen(onBack: () -> Unit) {
         calendar.get(Calendar.MINUTE),
         true
     )
+
+    // function to convert a uri to path
+    fun uriToFilePath(context: Context, uri: Uri): String? {
+        return uri.path
+    }
+
+    // File picker launcher
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents(),
+        onResult = { uris: List<Uri> ->
+            uris.forEach { uri ->
+                val path = uriToFilePath(context, uri)
+                // Add to list
+                if (path != null) attachments.add(path)
+            }
+        }
+    )
+
 
     // Date pick
     val datePickerDialog = DatePickerDialog(
@@ -254,22 +296,61 @@ fun AddTaskScreen(onBack: () -> Unit) {
                 readOnly = true
             )
 
+            // Attachments Section
+            Text("Attachments (${attachments.size})")
+            LazyRow {
+                items(attachments) { path ->
+                    Text(text = path.substringAfterLast('/'), modifier = Modifier.padding(4.dp))
+                }
+            }
+
+            Button(onClick = {
+                filePickerLauncher.launch("*/*")
+            }) {
+                Text("Add Attachment")
+            }
+
+            // Notifications
             Row(
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
             ) {
                 Text("Enable Notifications")
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(
+                    modifier = Modifier
+                        .width(8.dp)
+
+                )
+                // Enabling notifications
                 Switch(checked = notify.value, onCheckedChange = { notify.value = it })
             }
 
             Button(
                 onClick = {
-                    println("Task Saved: $title, $description, $categoryInput, $dueDate, notify=$notify")
+                    CoroutineScope(Dispatchers.IO).launch {
+                        val task = Task(
+                            title = title.value,
+                            description = description.value,
+                            category = categoryInput.value,
+                            dueTime = formatter.parse(dueDate.value)?.time ?: 0L,
+                            notify = notify.value,
+                            isCompleted = false,
+                            creationTime = System.currentTimeMillis(),
+                            attachments = attachments.toList()
+                        )
+                        // Insert task do database
+                        taskDao.insertTask(task)
+                    }
+                    // Go back to home
                     onBack()
                 },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colorResource(id = R.color.primary_green),
+                    contentColor = Color.White
+                ),
                 modifier = Modifier
-                    .align(Alignment.End)
-                    .background(colorResource(id = R.color.primary_green))
+                    .align(Alignment.CenterHorizontally)
+
             ) {
                 Text("Add Task")
             }
