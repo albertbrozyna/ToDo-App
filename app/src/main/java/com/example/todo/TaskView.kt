@@ -31,6 +31,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -389,26 +390,42 @@ fun EditTaskContent(
     if (openDialog.value) {
         AlertDialog(
             onDismissRequest = { openDialog.value = false },
-            title = { Text(text = "Delete Task?",
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center
-            ) },
-            text = { Text("Are you sure you want to delete this task? This action cannot be undone.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDelete(initialTask)
-                    openDialog.value = false
-                }) {
-                    Text("Delete", color = Color.Red)
+            title = {
+                Text(
+                    text = "Delete Task?",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        "Are you sure you want to delete this task? This action cannot be undone.",
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        TextButton(onClick = { openDialog.value = false }) {
+                            Text("Cancel")
+                        }
+                        TextButton(onClick = {
+                            onDelete(initialTask)
+                            openDialog.value = false
+                            onBack()
+                        }) {
+                            Text("Delete", color = Color.Red)
+                        }
+                    }
                 }
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    openDialog.value = false
-                }) {
-                    Text("Cancel")
-                }
-            }
+            confirmButton = {},
+            dismissButton = {}
         )
     }
 
