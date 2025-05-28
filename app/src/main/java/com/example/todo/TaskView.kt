@@ -65,6 +65,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.mutableIntStateOf
 import com.example.todo.loadPreferenceListString
 import com.example.todo.loadPreferenceString
@@ -581,30 +582,34 @@ fun AddTaskScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Category selection
-            OutlinedTextField(
-                value = category.value,
-                onValueChange = {},
-                label = { Text("Category") },
-                readOnly = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded.value = true }
-            )
+            // Category selection closed in box
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = category.value,
+                    onValueChange = {},
+                    label = { Text("Category") },
+                    readOnly = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { expanded.value = true }
+                )
 
-            DropdownMenu(
-                expanded = expanded.value,
-                onDismissRequest = { expanded.value = false },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                categories.forEach { categoryItem ->
-                    DropdownMenuItem(
-                        text = { Text(categoryItem) },
-                        onClick = {     // After click select category
-                            category.value = categoryItem
-                            expanded.value = false
-                        }
-                    )
+                DropdownMenu(
+                    expanded = expanded.value,
+                    onDismissRequest = { expanded.value = false },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopStart)
+                ) {
+                    categories.forEach { categoryItem ->
+                        DropdownMenuItem(
+                            text = { Text(categoryItem) },
+                            onClick = {
+                                category.value = categoryItem
+                                expanded.value = false
+                            }
+                        )
+                    }
                 }
             }
 
@@ -750,6 +755,7 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     val categories = remember { mutableStateListOf<String>().apply { addAll(loadPreferenceListString(context,categoriesKey)) } }
     val newCategory = remember { mutableStateOf("") }
+    val showCategories = remember { mutableStateOf(false) }
 
     val hideCompleted = remember { mutableStateOf(prefs.getBoolean("hide_completed", false)) }
     val notificationLeadTime = remember { mutableIntStateOf(prefs.getInt(notificationTimeBefore, 5)) }
@@ -792,25 +798,35 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
             }
 
-            // Categories settings
-            Text("Current Categories:")
-            LazyColumn {
-                items(categories) { category ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                    ) {
-                        Text(category, modifier = Modifier.weight(1f))
+            // Toggle visibility of categories
+            val showCategories = remember { mutableStateOf(false) }
 
-                        IconButton(onClick = {
-                            categories.remove(category)
-                            // Save after removing a category
-                            savePreferenceListString(context, categoriesKey, categories)
-                        }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete category")
+            // Categories settings section
+
+            TextButton(onClick = { showCategories.value = !showCategories.value }) {
+                Text(if (showCategories.value) "Hide Categories" else "Show Categories")
+            }
+
+            // show categories
+            if (showCategories.value) {
+                Text("Current Categories:")
+                LazyColumn {
+                    items(categories) { category ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Text(category, modifier = Modifier.weight(1f))
+
+                            IconButton(onClick = {
+                                categories.remove(category)
+                                savePreferenceListString(context, categoriesKey, categories)
+                            }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete category")
+                            }
                         }
                     }
                 }
