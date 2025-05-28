@@ -1,7 +1,6 @@
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Context
-import android.content.SharedPreferences
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -37,11 +36,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.TopAppBarDefaults
@@ -60,8 +57,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.todo.AppDatabase
 import com.example.todo.DatabaseProvider
 import com.example.todo.Task
 import kotlinx.coroutines.CoroutineScope
@@ -70,7 +65,10 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.runtime.mutableIntStateOf
+import com.example.todo.loadPreferenceListString
 import com.example.todo.loadPreferenceString
+import com.example.todo.savePreferenceListString
 import com.example.todo.savePreferenceString
 import com.example.todo.uriToFilePath
 import java.time.LocalDate
@@ -134,6 +132,157 @@ fun EditTaskScreen(taskId: Long, onBack: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun HomeScreen(
+    modifier: Modifier = Modifier,
+    onAddTaskClick: () -> Unit,
+    onSettingsClick: () -> Unit,
+    onNavigateTask: (Task) -> Unit
+) {
+    val context = LocalContext.current
+    val db = remember { DatabaseProvider.getDatabase(context) }
+    val taskDao = db.taskDao()
+
+    var tasks = remember { mutableStateOf<List<Task>>(emptyList()) }
+
+    val hideDoneKey = context.getString(R.string.hide_done_key)
+
+    val hideCompleted = remember {
+        mutableStateOf(
+            loadPreferenceString(context, hideDoneKey)?.toBooleanStrictOrNull() == true
+        )
+    }
+
+    // Fetch tasks from DB
+    LaunchedEffect(hideCompleted.value) {
+        tasks.value = if (hideCompleted.value) {
+            taskDao.getAllTasks().filterNot { it.isCompleted }
+        } else {
+            taskDao.getAllTasks()
+        }
+    }
+
+    Scaffold(
+        topBar = { TopBar(onSettingsClick = onSettingsClick) },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onAddTaskClick,
+                containerColor = colorResource(id = R.color.primary_green)
+            ) {
+                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Task")
+            }
+        }
+    ) { paddingValues ->
+        if (tasks.value.isEmpty()) {    // If no tasks show a text
+            Box(
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("No tasks yet.")
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(tasks.value) { task ->
+                    TaskCard(task = task, onNavigate = onNavigateTask) { updatedTask ->
+                        val updatedTask = task.copy(isCompleted = !task.isCompleted)    // Switch task status
+
+                        CoroutineScope(Dispatchers.IO).launch {
+                            taskDao.updateTask(updatedTask)
+                            // refresh after update
+                            tasks.value = if (hideCompleted.value) {
+                                taskDao.getAllTasks().filterNot { it.isCompleted }
+                            } else {
+                                taskDao.getAllTasks()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TaskCard(
+    task: Task,
+    onNavigate: (Task) -> Unit,
+    onToggleComplete: (Task) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onNavigate }
+            .background(
+                color = colorResource(id = R.color.primary_blue).copy(alpha = 0.1f),
+                shape = MaterialTheme.shapes.medium
+            )
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(
+            onClick = { onToggleComplete(task)  },
+            modifier = Modifier
+                .size(24.dp)
+        ) {
+            if (task.isCompleted) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Completed",
+                    tint = colorResource(id = R.color.primary_green)
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Outlined.Circle,
+                    contentDescription = "Incomplete",
+                    tint = Color.Gray
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(text = task.title, style = MaterialTheme.typography.titleMedium)
+
+            if (task.description.isNotBlank()) {
+                Text(text = task.description, style = MaterialTheme.typography.bodyMedium)
+            }
+
+            if (task.dueTime > 0L) {
+                Text(
+                    text = "Due: ${Date(task.dueTime)}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
+            if (task.category.isNotBlank()) {
+                Text(
+                    text = "Category: ${task.category}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
+            if (task.notify) {
+                Text(
+                    text = "🔔 Notifications On",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun EditTaskContent(
     initialTask: Task,
     onSave: (Task) -> Unit,
@@ -153,8 +302,8 @@ fun EditTaskContent(
     val attachments = remember { mutableStateListOf<String>().apply { addAll(initialTask.attachments) } }
     val context = LocalContext.current
 
-    val categoriesKey = context.getString(R.string.categories);
-    val categories = loadPreferenceString(context, categoriesKey)
+    val categoriesKey = context.getString(R.string.categories_key)
+    val categories = loadPreferenceListString(context, categoriesKey)
 
     var expanded = remember { mutableStateOf(false) }
 
@@ -338,8 +487,8 @@ fun AddTaskScreen(onBack: () -> Unit) {
     var title = remember { mutableStateOf("") }
     var description = remember { mutableStateOf("") }
 
-    val categoriesKey = context.getString(R.string.categories)
-    val categories = loadPreferenceString(context, categoriesKey)
+    val categoriesKey = context.getString(R.string.categories_key)
+    val categories = loadPreferenceListString(context, categoriesKey)
     var category = remember { mutableStateOf("") }
     var expanded = remember { mutableStateOf(false) }
 
@@ -505,7 +654,7 @@ fun AddTaskScreen(onBack: () -> Unit) {
                 onClick = {
                     val time = try {
                         LocalDateTime.parse(dueDate.value, formatter).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                    } catch (e: Exception) {
+                    } catch (e : Exception) {
                         0L
                     }
 
@@ -540,151 +689,9 @@ fun AddTaskScreen(onBack: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun HomeScreen(
-    modifier: Modifier = Modifier,
-    onAddTaskClick: () -> Unit,
-    onSettingsClick: () -> Unit,
-    onNavigateTask: (Task) -> Unit
-) {
 
-    val context = LocalContext.current
-    val db = remember { DatabaseProvider.getDatabase(context) }
-    var tasks = remember { mutableStateOf<List<Task>>(emptyList()) }
 
-    val taskDao = db.taskDao()
 
-    val prefs = context.getSharedPreferences(context.getString(R.string.app_name), Context.MODE_PRIVATE)
-    val hideCompleted = remember { mutableStateOf(prefs.getBoolean("hide_completed", false)) }
-
-    // Fetch tasks from DB
-    LaunchedEffect(hideCompleted.value) {
-        tasks.value = if (hideCompleted.value) {
-            taskDao.getAllTasks().filterNot { it.isCompleted }
-        } else {
-            taskDao.getAllTasks()
-        }
-    }
-
-    Scaffold(
-        topBar = { TopBar(onSettingsClick = onSettingsClick) },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onAddTaskClick,
-                containerColor = colorResource(id = R.color.primary_green)
-            ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add Task")
-            }
-        }
-    ) { paddingValues ->
-        if (tasks.value.isEmpty()) {    // If no tasks show a text
-            Box(
-                modifier = modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("No tasks yet.")
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(tasks.value) { task ->
-                    TaskCard(task = task, onNavigate = onNavigateTask) { updatedTask ->
-                        val updatedTask = task.copy(isCompleted = !task.isCompleted)    // Switch task status
-                        CoroutineScope(Dispatchers.IO).launch {
-                            taskDao.updateTask(updatedTask)
-                            // refresh after update
-                            tasks.value = if (hideCompleted.value) {
-                                taskDao.getAllTasks().filterNot { it.isCompleted }
-                            } else {
-                                taskDao.getAllTasks()
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun TaskCard(
-    task: Task,
-    onNavigate: (Task) -> Unit,
-    onToggleComplete: (Task) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onNavigate }
-            .background(
-                color = colorResource(id = R.color.primary_blue).copy(alpha = 0.1f),
-                shape = MaterialTheme.shapes.medium
-            )
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(
-            onClick = { onToggleComplete(task)  },
-            modifier = Modifier
-                .size(24.dp)
-        ) {
-            if (task.isCompleted) {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "Completed",
-                    tint = colorResource(id = R.color.primary_green)
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Outlined.Circle,
-                    contentDescription = "Incomplete",
-                    tint = Color.Gray
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.width(8.dp))
-
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
-            Text(text = task.title, style = MaterialTheme.typography.titleMedium)
-
-            if (task.description.isNotBlank()) {
-                Text(text = task.description, style = MaterialTheme.typography.bodyMedium)
-            }
-
-            if (task.dueTime > 0L) {
-                Text(
-                    text = "Due: ${Date(task.dueTime)}",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-
-            if (task.category.isNotBlank()) {
-                Text(
-                    text = "Category: ${task.category}",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-
-            if (task.notify) {
-                Text(
-                    text = "🔔 Notifications On",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-    }
-}
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -741,11 +748,11 @@ fun SettingsScreen(onBack: () -> Unit) {
     val hideDoneKey = context.getString(R.string.hide_done_key)
     val notificationTimeBefore = context.getString(R.string.notification_time_before_key)
 
-    val categories = remember { mutableStateListOf<String>().apply { addAll(loadPreferenceString(context,categoriesKey)) } }
+    val categories = remember { mutableStateListOf<String>().apply { addAll(loadPreferenceListString(context,categoriesKey)) } }
     val newCategory = remember { mutableStateOf("") }
 
     val hideCompleted = remember { mutableStateOf(prefs.getBoolean("hide_completed", false)) }
-    val notificationLeadTime = remember { mutableStateOf(prefs.getInt("notification_lead_minutes", 10)) }
+    val notificationLeadTime = remember { mutableIntStateOf(prefs.getInt(notificationTimeBefore, 5)) }
 
     Scaffold(
         topBar = {
@@ -777,7 +784,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Button(onClick = {
                     if (newCategory.value.isNotBlank() && !categories.contains(newCategory.value)) {
                         categories.add(newCategory.value)
-                        savePreferenceString(context, categoriesKey, categories)
+                        savePreferenceListString(context, categoriesKey, categories)
                         newCategory.value = ""
                     }
                 }) {
@@ -801,7 +808,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         IconButton(onClick = {
                             categories.remove(category)
                             // Save after removing a category
-                            savePreferenceString(context, categoriesKey, categories)
+                            savePreferenceListString(context, categoriesKey, categories)
                         }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete category")
                         }
@@ -818,24 +825,27 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Spacer(modifier = Modifier.width(8.dp))
                 Switch(
                     checked = hideCompleted.value,
+                    // Save if we need to hide done tasks
                     onCheckedChange = {
                         hideCompleted.value = it
-                        prefs.edit().putBoolean("hide_completed", it).apply()
+                        savePreferenceString(context = context,hideDoneKey,hideCompleted.value.toString())
                     }
                 )
             }
 
+            // Notification time section
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Notification lead time (minutes):")
                 Spacer(modifier = Modifier.width(8.dp))
                 OutlinedTextField(
-                    value = notificationLeadTime.value.toString(),
+                    value = notificationLeadTime.intValue.toString(),
                     onValueChange = {
+                        // Saving notification time before
                         val parsed = it.toIntOrNull() ?: 0
-                        notificationLeadTime.value = parsed
-                        prefs.edit().putInt("notification_lead_minutes", parsed).apply()
+                        notificationLeadTime.intValue = parsed
+                        savePreferenceString(context = context,notificationTimeBefore,notificationLeadTime.toString())
                     },
                     modifier = Modifier.width(80.dp)
                 )
