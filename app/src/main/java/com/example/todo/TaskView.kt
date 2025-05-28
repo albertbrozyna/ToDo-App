@@ -74,6 +74,8 @@ import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ShapeDefaults
+import androidx.compose.material3.SwitchColors
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -397,6 +399,8 @@ fun EditTaskContent(
         }
     )
 
+    var isError = remember { mutableStateOf(false) }
+
     // Confirmation dialog for delete
 
     if (openDialog.value) {
@@ -481,10 +485,23 @@ fun EditTaskContent(
             // Title
             OutlinedTextField(
                 value = title.value,
-                onValueChange = { title.value = it },
+                onValueChange = {
+                    title.value = it
+                    isError.value = it.isBlank() //Show error if it is empty
+                },
                 label = { Text("Title") },
                 modifier = Modifier.fillMaxWidth()
             )
+
+            // Show here info that title is required
+            if (isError.value) {
+                Text(
+                    text = "Title is required",
+                    color = Color(0xFFF80202),
+                    modifier = Modifier.padding(start = 16.dp)
+                )
+            }
+
             // Description
             OutlinedTextField(
                 value = description.value,
@@ -548,6 +565,7 @@ fun EditTaskContent(
 
             // Notifications
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
@@ -558,25 +576,38 @@ fun EditTaskContent(
 
                 )
                 // Enabling notifications
-                Switch(checked = notify.value, onCheckedChange = { notify.value = it })
+                Switch(checked = notify.value, onCheckedChange = { notify.value = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        uncheckedThumbColor = Color.White,
+                        checkedTrackColor = emerald,
+                        uncheckedTrackColor = Color.Gray
+                    ))
             }
 
 
             // Attachments section
 
-            Text("Attachments: (${attachments.size})")
+
 
             Button(
                 onClick = {
                     filePickerLauncher.launch("*/*") // Allow any file type
                 },
-                modifier = Modifier.align(Alignment.CenterHorizontally)
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                , shape = RoundedCornerShape(6.dp),
+                colors = ButtonDefaults.buttonColors(
+                    contentColor = Color.White,
+                    containerColor = prussianBlue
+                )
             ) {
                 Icon(Icons.Default.AttachFile, contentDescription = "Attach")
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Add Attachment")
             }
 
+            Text("Attachments: (${attachments.size})")
             LazyRow {
                     itemsIndexed(attachments) { index, uri ->
 
@@ -604,8 +635,6 @@ fun EditTaskContent(
                             }
                         }
             }   }
-
-
 
 
             // Save button
