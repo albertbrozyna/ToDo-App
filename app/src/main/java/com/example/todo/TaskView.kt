@@ -52,11 +52,11 @@ import androidx.compose.ui.unit.dp
 import com.example.todo.R
 import java.util.*
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.Alignment
 import com.example.todo.DatabaseProvider
 import com.example.todo.Task
 import kotlinx.coroutines.CoroutineScope
@@ -65,13 +65,24 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 import androidx.compose.material.icons.outlined.Circle
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonColors
+import androidx.compose.material3.ShapeDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.text.style.TextAlign
 import com.example.todo.loadPreferenceListString
 import com.example.todo.loadPreferenceString
 import com.example.todo.savePreferenceListString
 import com.example.todo.savePreferenceString
+import com.example.todo.ui.theme.emerald
+import com.example.todo.ui.theme.prussianBlue
 import com.example.todo.uriToFilePath
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -86,7 +97,9 @@ fun ToDoApp() {
             HomeScreen(
                 onAddTaskClick = { navController.navigate("add_task") },
                 onSettingsClick = { navController.navigate("settings")},
-                onNavigateTask = {navController.navigate("edit_task/{taskId}")}
+                onNavigateTask = { task ->
+                    navController.navigate("edit_task/${task.id}")
+                }
             )
         }
         composable("add_task") {
@@ -108,6 +121,7 @@ fun EditTaskScreen(taskId: Long, onBack: () -> Unit) {
     val context = LocalContext.current
     val db = DatabaseProvider.getDatabase(context)
     val taskDao = db.taskDao()
+    val coroutineScope = rememberCoroutineScope()
 
     var task = remember { mutableStateOf<Task?>(null) }
 
@@ -120,16 +134,25 @@ fun EditTaskScreen(taskId: Long, onBack: () -> Unit) {
         EditTaskContent(
             initialTask = t,
             onSave = { updatedTask ->
-                CoroutineScope(Dispatchers.IO).launch {
+                coroutineScope.launch {
                     taskDao.updateTask(updatedTask.copy(id = taskId.toInt()))
+                    withContext(Dispatchers.Main) {
+                        onBack()
+                    }
                 }
-                onBack()
+            },
+            onDelete = { deletedTask ->
+                coroutineScope.launch {
+                    taskDao.deleteTask(deletedTask.copy(id = taskId.toInt()))
+                    withContext(Dispatchers.Main) {
+                        onBack()
+                    }
+                }
             },
             onBack = onBack
         )
     }
 }
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -219,7 +242,7 @@ fun TaskCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onNavigate }
+            .clickable { onNavigate(task) }
             .background(
                 color = colorResource(id = R.color.primary_blue).copy(alpha = 0.1f),
                 shape = MaterialTheme.shapes.medium
@@ -227,6 +250,7 @@ fun TaskCard(
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Check icon
         IconButton(
             onClick = { onToggleComplete(task)  },
             modifier = Modifier
@@ -249,6 +273,7 @@ fun TaskCard(
 
         Spacer(modifier = Modifier.width(8.dp))
 
+        // Task info
         Column(
             modifier = Modifier.weight(1f)
         ) {
@@ -274,7 +299,7 @@ fun TaskCard(
 
             if (task.notify) {
                 Text(
-                    text = "🔔 Notifications On",
+                    text = "Notifications On",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -287,44 +312,41 @@ fun TaskCard(
 fun EditTaskContent(
     initialTask: Task,
     onSave: (Task) -> Unit,
+    onDelete: (Task) -> Unit,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
+
     val title = remember { mutableStateOf(initialTask.title) }
     val description = remember { mutableStateOf(initialTask.description) }
+
+    val creationDate = remember { mutableLongStateOf(initialTask.creationTime) }
+    val formattedCreationDate = remember(creationDate.value) {
+        val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+        formatter.format(Date(creationDate.value))
+    }
+
+    // Categories
+    val categoriesKey = context.getString(R.string.categories_key)
+    val categories = loadPreferenceListString(context, categoriesKey)
     var category = remember { mutableStateOf(initialTask.category) }
+    var expanded = remember { mutableStateOf(false) }
+
+    val notify = remember { mutableStateOf(initialTask.notify) }
+    val attachments = remember { mutableStateListOf<String>().apply { addAll(initialTask.attachments) } }
+
+    // Date and time
+    val calendar = Calendar.getInstance()
+    val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+    var selectedDate = remember { mutableStateOf<LocalDate?>(null) }
+    var selectedTime = remember { mutableStateOf<LocalTime?>(null) }
+    val openDialog = remember { mutableStateOf(false) }
 
     val dueDate = remember { mutableStateOf(
         if (initialTask.dueTime > 0L)
             SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(initialTask.dueTime))
         else ""
     )}
-
-    val notify = remember { mutableStateOf(initialTask.notify) }
-    val attachments = remember { mutableStateListOf<String>().apply { addAll(initialTask.attachments) } }
-    val context = LocalContext.current
-
-    val categoriesKey = context.getString(R.string.categories_key)
-    val categories = loadPreferenceListString(context, categoriesKey)
-
-    var expanded = remember { mutableStateOf(false) }
-
-
-    val calendar = Calendar.getInstance()
-    val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-    var selectedDate = remember { mutableStateOf<LocalDate?>(null) }
-    var selectedTime = remember { mutableStateOf<LocalTime?>(null) }
-
-    // File picker launcher
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetMultipleContents(),
-        onResult = { uris: List<Uri> ->
-            uris.forEach { uri ->
-                val path = uriToFilePath(context, uri)
-                // Add to list
-                if (path != null) attachments.add(path)
-            }
-        }
-    )
 
     // Time Picker
     val timePickerDialog = TimePickerDialog(
@@ -349,13 +371,70 @@ fun EditTaskContent(
         calendar.get(Calendar.DAY_OF_MONTH)
     )
 
+
+    // File picker launcher
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents(),
+        onResult = { uris: List<Uri> ->
+            uris.forEach { uri ->
+                val path = uriToFilePath(context, uri)
+                // Add to list
+                if (path != null) attachments.add(path)
+            }
+        }
+    )
+
+    // Confirmation dialog for delete
+
+    if (openDialog.value) {
+        AlertDialog(
+            onDismissRequest = { openDialog.value = false },
+            title = { Text(text = "Delete Task?",
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
+            ) },
+            text = { Text("Are you sure you want to delete this task? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDelete(initialTask)
+                    openDialog.value = false
+                }) {
+                    Text("Delete", color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    openDialog.value = false
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Edit Task" ) },
+                title = { Text("Edit Task") },
+                // Icon to back to prev screen
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    // Delete button
+                    IconButton(
+                        onClick = {
+                            openDialog.value = true
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete Task",
+                            tint = Color.Red
+                        )
                     }
                 }
             )
@@ -382,31 +461,34 @@ fun EditTaskContent(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            // Category selection closed in box
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = category.value,
+                    onValueChange = {},
+                    label = { Text("Category") },
+                    readOnly = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { expanded.value = true }
+                )
 
-            // Category selection
-            OutlinedTextField(
-                value = category.value,
-                onValueChange = {},
-                label = { Text("Category") },
-                readOnly = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded.value = true }
-            )
-
-            DropdownMenu(
-                expanded = expanded.value,
-                onDismissRequest = { expanded.value = false },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                categories.forEach { categoryItem ->
-                    DropdownMenuItem(
-                        text = { Text(categoryItem) },
-                        onClick = {     // After click select category
-                            category.value = categoryItem
-                            expanded.value = false
-                        }
-                    )
+                DropdownMenu(
+                    expanded = expanded.value,
+                    onDismissRequest = { expanded.value = false },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopStart)
+                ) {
+                    categories.forEach { categoryItem ->
+                        DropdownMenuItem(
+                            text = { Text(categoryItem) },
+                            onClick = {
+                                category.value = categoryItem
+                                expanded.value = false
+                            }
+                        )
+                    }
                 }
             }
 
@@ -423,6 +505,15 @@ fun EditTaskContent(
                 readOnly = true
             )
 
+            // Creation time
+            OutlinedTextField(
+                value = formattedCreationDate,
+                onValueChange = {}, // Required even if disabled
+                label = { Text("Created:") },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = false
+            )
+
 
             // Attachments Section
             Text("Attachments (${attachments.size})")
@@ -434,7 +525,13 @@ fun EditTaskContent(
 
             Button(onClick = {
                 filePickerLauncher.launch("*/*")
-            }) {
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = prussianBlue,
+               contentColor = Color.White
+            ),
+                shape = RoundedCornerShape(6.dp)
+            ) {
                 Text("Add Attachment")
             }
 
@@ -454,7 +551,8 @@ fun EditTaskContent(
             }
 
             // Save button
-            Button(onClick = {
+            Button(
+                onClick = {
                 val time = if (dueDate.value.trim().isEmpty()) {
                     0L
                 } else {
@@ -471,7 +569,15 @@ fun EditTaskContent(
                         attachments = attachments.toList()
                     )
                 )
-            }) {
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = emerald,
+                contentColor = Color.White
+            ),
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                , shape = RoundedCornerShape(6.dp)
+            ) {
                 Text("Save Changes")
             }
         }
