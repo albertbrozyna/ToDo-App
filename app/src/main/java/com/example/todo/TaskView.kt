@@ -56,6 +56,7 @@ import com.example.todo.R
 import java.util.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -69,6 +70,14 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 import androidx.compose.material.icons.outlined.Circle
+import com.example.todo.loadPreferenceString
+import com.example.todo.savePreferenceString
+import com.example.todo.uriToFilePath
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun ToDoApp() {
@@ -77,7 +86,8 @@ fun ToDoApp() {
         composable("home") {
             HomeScreen(
                 onAddTaskClick = { navController.navigate("add_task") },
-                onSettingsClick = { navController.navigate("settings")}
+                onSettingsClick = { navController.navigate("settings")},
+                onNavigateTask = {navController.navigate("edit_task/{taskId}")}
             )
         }
         composable("add_task") {
@@ -94,12 +104,449 @@ fun ToDoApp() {
     }
 }
 
+@Composable
+fun EditTaskScreen(taskId: Long, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val db = DatabaseProvider.getDatabase(context)
+    val taskDao = db.taskDao()
+
+    var task = remember { mutableStateOf<Task?>(null) }
+
+    // Load task from DB
+    LaunchedEffect(taskId) {
+        task.value = taskDao.getTaskById(taskId.toInt())
+    }
+
+    task.value?.let { t ->
+        EditTaskContent(
+            initialTask = t,
+            onSave = { updatedTask ->
+                CoroutineScope(Dispatchers.IO).launch {
+                    taskDao.updateTask(updatedTask.copy(id = taskId.toInt()))
+                }
+                onBack()
+            },
+            onBack = onBack
+        )
+    }
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditTaskContent(
+    initialTask: Task,
+    onSave: (Task) -> Unit,
+    onBack: () -> Unit
+) {
+    val title = remember { mutableStateOf(initialTask.title) }
+    val description = remember { mutableStateOf(initialTask.description) }
+    var category = remember { mutableStateOf(initialTask.category) }
+
+    val dueDate = remember { mutableStateOf(
+        if (initialTask.dueTime > 0L)
+            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(initialTask.dueTime))
+        else ""
+    )}
+
+    val notify = remember { mutableStateOf(initialTask.notify) }
+    val attachments = remember { mutableStateListOf<String>().apply { addAll(initialTask.attachments) } }
+    val context = LocalContext.current
+
+    val categoriesKey = context.getString(R.string.categories);
+    val categories = loadPreferenceString(context, categoriesKey)
+
+    var expanded = remember { mutableStateOf(false) }
+
+
+    val calendar = Calendar.getInstance()
+    val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+    var selectedDate = remember { mutableStateOf<LocalDate?>(null) }
+    var selectedTime = remember { mutableStateOf<LocalTime?>(null) }
+
+    // File picker launcher
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents(),
+        onResult = { uris: List<Uri> ->
+            uris.forEach { uri ->
+                val path = uriToFilePath(context, uri)
+                // Add to list
+                if (path != null) attachments.add(path)
+            }
+        }
+    )
+
+    // Time Picker
+    val timePickerDialog = TimePickerDialog(
+        context,
+        { _, hourOfDay, minute ->
+            selectedTime.value = LocalTime.of(hourOfDay, minute)
+        },
+        calendar.get(Calendar.HOUR_OF_DAY),
+        calendar.get(Calendar.MINUTE),
+        true
+    )
+
+    // Date picker
+    val datePickerDialog = DatePickerDialog(
+        context,
+        { _, year, month, dayOfMonth ->
+            selectedDate.value = LocalDate.of(year, month + 1, dayOfMonth)
+            timePickerDialog.show()
+        },
+        calendar.get(Calendar.YEAR),
+        calendar.get(Calendar.MONTH),
+        calendar.get(Calendar.DAY_OF_MONTH)
+    )
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Edit Task" ) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        Column(modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+            .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+
+            OutlinedTextField(
+                value = title.value,
+                onValueChange = { title.value = it },
+                label = { Text("Title") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = description.value,
+                onValueChange = { description.value = it },
+                label = { Text("Description") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+
+            // Category selection
+            OutlinedTextField(
+                value = category.value,
+                onValueChange = {},
+                label = { Text("Category") },
+                readOnly = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded.value = true }
+            )
+
+            DropdownMenu(
+                expanded = expanded.value,
+                onDismissRequest = { expanded.value = false },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                categories.forEach { categoryItem ->
+                    DropdownMenuItem(
+                        text = { Text(categoryItem) },
+                        onClick = {     // After click select category
+                            category.value = categoryItem
+                            expanded.value = false
+                        }
+                    )
+                }
+            }
+
+            // Select time
+            OutlinedTextField(
+                value = dueDate.value,
+                onValueChange = { },
+                label = { Text("Complete By (Date & Time)") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        datePickerDialog.show()
+                    },
+                readOnly = true
+            )
+
+
+            // Attachments Section
+            Text("Attachments (${attachments.size})")
+            LazyRow {
+                items(attachments) { path ->
+                    Text(text = path.substringAfterLast('/'), modifier = Modifier.padding(4.dp))
+                }
+            }
+
+            Button(onClick = {
+                filePickerLauncher.launch("*/*")
+            }) {
+                Text("Add Attachment")
+            }
+
+            // Notifications
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text("Enable Notifications")
+                Spacer(
+                    modifier = Modifier
+                        .width(8.dp)
+
+                )
+                // Enabling notifications
+                Switch(checked = notify.value, onCheckedChange = { notify.value = it })
+            }
+
+            // Save button
+            Button(onClick = {
+                val time = if (dueDate.value.trim().isEmpty()) {
+                    0L
+                } else {
+                    formatter.parse(dueDate.value)?.time ?: 0L
+                }
+
+                onSave(
+                    initialTask.copy(
+                        title = title.value,
+                        description = description.value,
+                        category = category.value,
+                        dueTime = time,
+                        notify = notify.value,
+                        attachments = attachments.toList()
+                    )
+                )
+            }) {
+                Text("Save Changes")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddTaskScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val db = DatabaseProvider.getDatabase(context)
+    val taskDao = db.taskDao()
+
+    var title = remember { mutableStateOf("") }
+    var description = remember { mutableStateOf("") }
+
+    val categoriesKey = context.getString(R.string.categories)
+    val categories = loadPreferenceString(context, categoriesKey)
+    var category = remember { mutableStateOf("") }
+    var expanded = remember { mutableStateOf(false) }
+
+    var dueDate = remember { mutableStateOf("") }
+    var notify = remember { mutableStateOf(false) }
+    var attachments = remember { mutableStateListOf<String>() }
+
+    // Date and time
+    val calendar = Calendar.getInstance()
+    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+    var selectedDate = remember { mutableStateOf<LocalDate?>(null) }
+    var selectedTime = remember { mutableStateOf<LocalTime?>(null) }
+
+
+    // Time Picker
+    val timePickerDialog = TimePickerDialog(
+        context,
+        { _, hourOfDay, minute ->
+            selectedTime.value = LocalTime.of(hourOfDay, minute)
+
+            val date = selectedDate.value
+            if (date != null) {
+                val dateTime = LocalDateTime.of(date, selectedTime.value!!)
+                dueDate.value = dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+            }
+        },
+        calendar.get(Calendar.HOUR_OF_DAY),
+        calendar.get(Calendar.MINUTE),
+        true
+    )
+
+    // Date picker
+    val datePickerDialog = DatePickerDialog(
+        context,
+        { _, year, month, dayOfMonth ->
+            selectedDate.value = LocalDate.of(year, month + 1, dayOfMonth)
+            timePickerDialog.show()
+        },
+        calendar.get(Calendar.YEAR),
+        calendar.get(Calendar.MONTH),
+        calendar.get(Calendar.DAY_OF_MONTH)
+    )
+
+    // File picker launcher
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents(),
+        onResult = { uris: List<Uri> ->
+            uris.forEach { uri ->
+                val path = uriToFilePath(context, uri)
+                // Add to list
+                if (path != null) attachments.add(path)
+            }
+        }
+    )
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Add Task") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp),
+            verticalArrangement = Arrangement
+                .spacedBy(16.dp)
+        ) {
+            OutlinedTextField(
+                value = title.value,
+                onValueChange = { title.value = it },
+                label = { Text("Title") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = description.value,
+                onValueChange = { description.value = it },
+                label = { Text("Description") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Category selection
+            OutlinedTextField(
+                value = category.value,
+                onValueChange = {},
+                label = { Text("Category") },
+                readOnly = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded.value = true }
+            )
+
+            DropdownMenu(
+                expanded = expanded.value,
+                onDismissRequest = { expanded.value = false },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                categories.forEach { categoryItem ->
+                    DropdownMenuItem(
+                        text = { Text(categoryItem) },
+                        onClick = {     // After click select category
+                            category.value = categoryItem
+                            expanded.value = false
+                        }
+                    )
+                }
+            }
+
+            // Select time
+            OutlinedTextField(
+                value = dueDate.value,
+                onValueChange = { },
+                label = { Text("Complete By (Date & Time)") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        datePickerDialog.show()
+                    },
+                readOnly = true
+            )
+
+            // Attachments Section
+            Text("Attachments (${attachments.size})")
+            LazyRow {
+                items(attachments) { path ->
+                    Text(text = path.substringAfterLast('/'), modifier = Modifier.padding(4.dp))
+                }
+            }
+
+            Button(onClick = {
+                filePickerLauncher.launch("*/*")
+            }) {
+                Text("Add Attachment")
+            }
+
+            // Notifications
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text("Enable Notifications")
+                Spacer(
+                    modifier = Modifier
+                        .width(8.dp)
+
+                )
+                // Enabling notifications
+                Switch(checked = notify.value, onCheckedChange = { notify.value = it })
+            }
+
+            Button(
+                onClick = {
+                    val time = try {
+                        LocalDateTime.parse(dueDate.value, formatter).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    } catch (e: Exception) {
+                        0L
+                    }
+
+                    CoroutineScope(Dispatchers.IO).launch {
+                        val task = Task(
+                            title = title.value,
+                            description = description.value,
+                            category = category.value,
+                            dueTime = time,
+                            notify = notify.value,
+                            isCompleted = false,
+                            creationTime = System.currentTimeMillis(),
+                            attachments = attachments.toList()
+                        )
+                        // Insert task do database
+                        taskDao.insertTask(task)
+                    }
+                    // Go back to home
+                    onBack()
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = colorResource(id = R.color.primary_green),
+                    contentColor = Color.White
+                ),
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+
+            ) {
+                Text("Add Task")
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
     onAddTaskClick: () -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onNavigateTask: (Task) -> Unit
 ) {
 
     val context = LocalContext.current
@@ -149,7 +596,7 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(tasks.value) { task ->
-                    TaskCard(task = task) { updatedTask ->
+                    TaskCard(task = task, onNavigate = onNavigateTask) { updatedTask ->
                         val updatedTask = task.copy(isCompleted = !task.isCompleted)    // Switch task status
                         CoroutineScope(Dispatchers.IO).launch {
                             taskDao.updateTask(updatedTask)
@@ -170,11 +617,13 @@ fun HomeScreen(
 @Composable
 fun TaskCard(
     task: Task,
+    onNavigate: (Task) -> Unit,
     onToggleComplete: (Task) -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onNavigate }
             .background(
                 color = colorResource(id = R.color.primary_blue).copy(alpha = 0.1f),
                 shape = MaterialTheme.shapes.medium
@@ -280,240 +729,6 @@ fun TopBar(
 }
 
 
-// Save preference string seperated by comma
-fun savePreferenceString(context: Context, key: String, preference: List<String>) {
-    val appName = context.getString(R.string.app_name)
-    val sharedPreferences: SharedPreferences =
-        context.getSharedPreferences(appName, Context.MODE_PRIVATE)
-
-    val joined = preference.joinToString(",")
-    sharedPreferences.edit().putString(key, joined).apply()
-}
-
-fun loadPreferenceString(context: Context, key: String): List<String> {
-    val appName = context.getString(R.string.app_name)
-    val sharedPreferences: SharedPreferences =
-        context.getSharedPreferences(appName, Context.MODE_PRIVATE)
-
-    val saved = sharedPreferences.getString(key, null)
-    return saved?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AddTaskScreen(onBack: () -> Unit) {
-    var title = remember { mutableStateOf("") }
-    var description = remember { mutableStateOf("") }
-    var categoryInput = remember { mutableStateOf("") }
-    var dueDate = remember { mutableStateOf("") }
-    var notify = remember { mutableStateOf(false) }
-    var attachments = remember { mutableStateListOf<String>() }
-    val context = LocalContext.current
-
-    val categoriesKey = context.getString(R.string.categories);
-
-    var expanded = remember { mutableStateOf(false) }
-    val categories = loadPreferenceString(context, categoriesKey)
-
-    val filteredCategories = categories.filter {
-        it.contains(categoryInput.value, ignoreCase = true) && it != categoryInput.value
-    }
-
-    val calendar = Calendar.getInstance()
-
-    // Database
-    val db = DatabaseProvider.getDatabase(context)
-    val taskDao = db.taskDao()
-
-    val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-
-    // Time Picker
-    val timePickerDialog = TimePickerDialog(
-        context,
-        { _, hourOfDay, minute ->
-            val time = String.format("%02d:%02d", hourOfDay, minute)
-            dueDate.value = "${dueDate.value} $time"
-        },
-        calendar.get(Calendar.HOUR_OF_DAY),
-        calendar.get(Calendar.MINUTE),
-        true
-    )
-
-    // function to convert a uri to path
-    fun uriToFilePath(context: Context, uri: Uri): String? {
-        return uri.path
-    }
-
-    // File picker launcher
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetMultipleContents(),
-        onResult = { uris: List<Uri> ->
-            uris.forEach { uri ->
-                val path = uriToFilePath(context, uri)
-                // Add to list
-                if (path != null) attachments.add(path)
-            }
-        }
-    )
-
-
-    // Date pick
-    val datePickerDialog = DatePickerDialog(
-        context,
-        { _, year, month, dayOfMonth ->
-            val selectedDate = String.format("%04d-%02d-%02d", year, month + 1, dayOfMonth)
-            dueDate.value = selectedDate
-            timePickerDialog.show() // After date show time
-        },
-        calendar.get(Calendar.YEAR),
-        calendar.get(Calendar.MONTH),
-        calendar.get(Calendar.DAY_OF_MONTH)
-    )
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Add Task") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            OutlinedTextField(
-                value = title.value,
-                onValueChange = { title.value = it },
-                label = { Text("Title") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = description.value,
-                onValueChange = { description.value = it },
-                label = { Text("Description") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // Category input with suggestions
-            Box {
-                OutlinedTextField(
-                    value = categoryInput.value,
-                    onValueChange = {
-                        categoryInput.value = it
-                        expanded.value = true
-                    },
-                    label = { Text("Category") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                DropdownMenu(
-                    expanded = expanded.value && filteredCategories.isNotEmpty(),
-                    onDismissRequest = { expanded.value = false },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    filteredCategories.forEach { suggestion ->
-                        DropdownMenuItem(
-                            text = { Text(suggestion) },
-                            onClick = {
-                                categoryInput.value = suggestion
-                                expanded.value = false
-                            }
-                        )
-                    }
-                }
-            }
-            // Select time
-            OutlinedTextField(
-                value = dueDate.value,
-                onValueChange = { },
-                label = { Text("Complete By (Date & Time)") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        datePickerDialog.show()
-                    },
-                readOnly = true
-            )
-
-            // Attachments Section
-            Text("Attachments (${attachments.size})")
-            LazyRow {
-                items(attachments) { path ->
-                    Text(text = path.substringAfterLast('/'), modifier = Modifier.padding(4.dp))
-                }
-            }
-
-            Button(onClick = {
-                filePickerLauncher.launch("*/*")
-            }) {
-                Text("Add Attachment")
-            }
-
-            // Notifications
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Text("Enable Notifications")
-                Spacer(
-                    modifier = Modifier
-                        .width(8.dp)
-
-                )
-                // Enabling notifications
-                Switch(checked = notify.value, onCheckedChange = { notify.value = it })
-            }
-
-            Button(
-                onClick = {
-                    val time = if (dueDate.value.trim().isEmpty()) {
-                        0L
-                    } else {
-                        formatter.parse(dueDate.value)?.time ?: 0L
-                    }
-
-                    CoroutineScope(Dispatchers.IO).launch {
-                        val task = Task(
-                            title = title.value,
-                            description = description.value,
-                            category = categoryInput.value,
-                            dueTime = time,
-                            notify = notify.value,
-                            isCompleted = false,
-                            creationTime = System.currentTimeMillis(),
-                            attachments = attachments.toList()
-                        )
-                        // Insert task do database
-                        taskDao.insertTask(task)
-                    }
-                    // Go back to home
-                    onBack()
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colorResource(id = R.color.primary_green),
-                    contentColor = Color.White
-                ),
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-
-            ) {
-                Text("Add Task")
-            }
-        }
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -521,7 +736,12 @@ fun SettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val prefs = context.getSharedPreferences(context.getString(R.string.app_name), Context.MODE_PRIVATE)
 
-    val categories = remember { mutableStateListOf<String>().apply { addAll(loadPreferenceString(context, "categories")) } }
+    // Preferences key
+    val categoriesKey = context.getString(R.string.categories_key)
+    val hideDoneKey = context.getString(R.string.hide_done_key)
+    val notificationTimeBefore = context.getString(R.string.notification_time_before_key)
+
+    val categories = remember { mutableStateListOf<String>().apply { addAll(loadPreferenceString(context,categoriesKey)) } }
     val newCategory = remember { mutableStateOf("") }
 
     val hideCompleted = remember { mutableStateOf(prefs.getBoolean("hide_completed", false)) }
@@ -557,7 +777,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Button(onClick = {
                     if (newCategory.value.isNotBlank() && !categories.contains(newCategory.value)) {
                         categories.add(newCategory.value)
-                        savePreferenceString(context, "categories", categories)
+                        savePreferenceString(context, categoriesKey, categories)
                         newCategory.value = ""
                     }
                 }) {
@@ -565,10 +785,27 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
             }
 
+            // Categories settings
             Text("Current Categories:")
             LazyColumn {
-                items(categories) {
-                    Text(it)
+                items(categories) { category ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                    ) {
+                        Text(category, modifier = Modifier.weight(1f))
+
+                        IconButton(onClick = {
+                            categories.remove(category)
+                            // Save after removing a category
+                            savePreferenceString(context, categoriesKey, categories)
+                        }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete category")
+                        }
+                    }
                 }
             }
 
