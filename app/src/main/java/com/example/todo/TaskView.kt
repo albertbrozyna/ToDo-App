@@ -53,8 +53,13 @@ import androidx.compose.ui.unit.dp
 import com.example.todo.R
 import java.util.*
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.LaunchedEffect
@@ -76,13 +81,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
+import com.example.todo.getFileNameFromUri
 import com.example.todo.loadPreferenceListString
 import com.example.todo.loadPreferenceString
+import com.example.todo.openFile
 import com.example.todo.savePreferenceListString
 import com.example.todo.savePreferenceString
 import com.example.todo.ui.theme.emerald
 import com.example.todo.ui.theme.prussianBlue
-import com.example.todo.uriToFilePath
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -321,10 +328,9 @@ fun EditTaskContent(
     val title = remember { mutableStateOf(initialTask.title) }
     val description = remember { mutableStateOf(initialTask.description) }
 
-    val creationDate = remember { mutableLongStateOf(initialTask.creationTime) }
-    val formattedCreationDate = remember(creationDate.value) {
+    val formattedCreationDate = remember(initialTask.creationTime) {
         val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-        formatter.format(Date(creationDate.value))
+        formatter.format(Date(initialTask.creationTime))
     }
 
     // Categories
@@ -334,7 +340,11 @@ fun EditTaskContent(
     var expanded = remember { mutableStateOf(false) }
 
     val notify = remember { mutableStateOf(initialTask.notify) }
-    val attachments = remember { mutableStateListOf<String>().apply { addAll(initialTask.attachments) } }
+    val attachments = remember {
+        mutableStateListOf<Uri>().apply {
+            addAll(initialTask.attachments.map { Uri.parse(it) })
+        }
+    }
 
     // Date and time
     val calendar = Calendar.getInstance()
@@ -354,6 +364,12 @@ fun EditTaskContent(
         context,
         { _, hourOfDay, minute ->
             selectedTime.value = LocalTime.of(hourOfDay, minute)
+
+            val date = selectedDate.value
+            if (date != null) {
+                val dateTime = LocalDateTime.of(date, selectedTime.value!!)
+                dueDate.value = dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+            }
         },
         calendar.get(Calendar.HOUR_OF_DAY),
         calendar.get(Calendar.MINUTE),
@@ -377,11 +393,7 @@ fun EditTaskContent(
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents(),
         onResult = { uris: List<Uri> ->
-            uris.forEach { uri ->
-                val path = uriToFilePath(context, uri)
-                // Add to list
-                if (path != null) attachments.add(path)
-            }
+            attachments.addAll(uris)
         }
     )
 
@@ -429,6 +441,7 @@ fun EditTaskContent(
         )
     }
 
+    val scrollState = rememberScrollState()
 
     Scaffold(
         topBar = {
@@ -460,17 +473,19 @@ fun EditTaskContent(
         Column(modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
-            .padding(16.dp),
+            .padding(16.dp)
+            .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 
+            // Title
             OutlinedTextField(
                 value = title.value,
                 onValueChange = { title.value = it },
                 label = { Text("Title") },
                 modifier = Modifier.fillMaxWidth()
             )
-
+            // Description
             OutlinedTextField(
                 value = description.value,
                 onValueChange = { description.value = it },
@@ -531,27 +546,6 @@ fun EditTaskContent(
                 enabled = false
             )
 
-
-            // Attachments Section
-            Text("Attachments (${attachments.size})")
-            LazyRow {
-                items(attachments) { path ->
-                    Text(text = path.substringAfterLast('/'), modifier = Modifier.padding(4.dp))
-                }
-            }
-
-            Button(onClick = {
-                filePickerLauncher.launch("*/*")
-            },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = prussianBlue,
-               contentColor = Color.White
-            ),
-                shape = RoundedCornerShape(6.dp)
-            ) {
-                Text("Add Attachment")
-            }
-
             // Notifications
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -566,6 +560,53 @@ fun EditTaskContent(
                 // Enabling notifications
                 Switch(checked = notify.value, onCheckedChange = { notify.value = it })
             }
+
+
+            // Attachments section
+
+            Text("Attachments: (${attachments.size})")
+
+            Button(
+                onClick = {
+                    filePickerLauncher.launch("*/*") // Allow any file type
+                },
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ) {
+                Icon(Icons.Default.AttachFile, contentDescription = "Attach")
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Add Attachment")
+            }
+
+            LazyRow {
+                    itemsIndexed(attachments) { index, uri ->
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .background(Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = getFileNameFromUri(context, uri),
+                                modifier = Modifier.clickable {
+                                    openFile(context, uri)
+                                },
+                                fontSize = 14.sp,
+                                color = Color.DarkGray
+                            )
+
+                            Spacer(modifier = Modifier.width(8.dp))
+                            IconButton(onClick = {
+                                attachments.remove(uri)
+                            }) {
+                                Icon(Icons.Default.Close, contentDescription = "Remove Attachment")
+                            }
+                        }
+            }   }
+
+
+
 
             // Save button
             Button(
@@ -583,7 +624,7 @@ fun EditTaskContent(
                         category = category.value,
                         dueTime = time,
                         notify = notify.value,
-                        attachments = attachments.toList()
+                        attachments = attachments.map { it.toString() } //
                     )
                 )
             },
@@ -618,7 +659,7 @@ fun AddTaskScreen(onBack: () -> Unit) {
 
     var dueDate = remember { mutableStateOf("") }
     var notify = remember { mutableStateOf(false) }
-    var attachments = remember { mutableStateListOf<String>() }
+    var attachments = remember { mutableStateListOf<Uri>() }
 
     // Date and time
     val calendar = Calendar.getInstance()
@@ -656,17 +697,14 @@ fun AddTaskScreen(onBack: () -> Unit) {
         calendar.get(Calendar.DAY_OF_MONTH)
     )
 
-    // File picker launcher
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents(),
         onResult = { uris: List<Uri> ->
-            uris.forEach { uri ->
-                val path = uriToFilePath(context, uri)
-                // Add to list
-                if (path != null) attachments.add(path)
-            }
+            attachments.addAll(uris)
         }
     )
+
+    val scrollState = rememberScrollState()
 
     Scaffold(
         topBar = {
@@ -687,7 +725,8 @@ fun AddTaskScreen(onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp),
+                .padding(16.dp)
+                .verticalScroll(scrollState),
             verticalArrangement = Arrangement
                 .spacedBy(16.dp)
         ) {
@@ -750,12 +789,7 @@ fun AddTaskScreen(onBack: () -> Unit) {
             )
 
             // Attachments Section
-            Text("Attachments (${attachments.size})")
-            LazyRow {
-                items(attachments) { path ->
-                    Text(text = path.substringAfterLast('/'), modifier = Modifier.padding(4.dp))
-                }
-            }
+           //
 
             Button(onClick = {
                 filePickerLauncher.launch("*/*")
@@ -795,7 +829,7 @@ fun AddTaskScreen(onBack: () -> Unit) {
                             notify = notify.value,
                             isCompleted = false,
                             creationTime = System.currentTimeMillis(),
-                            attachments = attachments.toList()
+                            attachments = attachments.map { it.toString() }
                         )
                         // Insert task do database
                         taskDao.insertTask(task)

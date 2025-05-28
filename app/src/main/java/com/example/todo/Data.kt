@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.TypeConverter
 import android.content.Context
+import android.net.Uri
 import androidx.room.Room
 
 import androidx.room.*
@@ -22,7 +23,8 @@ data class Task(
     val isCompleted: Boolean,
     val notify: Boolean,
     val category: String,
-    val attachments: List<String> // Store file paths
+    val attachments: List<String> // Store URI strings instead of Uri objects
+
 )
 
 @Dao
