@@ -1,15 +1,25 @@
 package com.example.todo
 
+import android.app.AlarmManager
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ActivityNotFoundException
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.OpenableColumns
 import android.widget.Toast
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.FileProvider
 import androidx.core.content.edit
 import java.io.File
+import kotlin.random.Random
 
 // Save preference string separated by comma
 fun savePreferenceListString(context: Context, key: String, preference: List<String>) {
@@ -78,4 +88,68 @@ fun getFileNameFromUri(context: Context, uri: Uri): String {
         result = uri.path?.substringAfterLast('/')
     }
     return result ?: "Unknown"
+}
+
+fun createNotificationChannel(context: Context) {
+    val channel = NotificationChannel(
+        "todo_channel_id",
+        "ToDo Notifications",
+        NotificationManager.IMPORTANCE_HIGH
+    )
+
+    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    manager.createNotificationChannel(channel)
+}
+
+class ReminderReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+
+            val title = intent.getStringExtra("title") ?: "Task Reminder"
+
+            val notification = NotificationCompat.Builder(context, "todo_channel_id")
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle("Reminder")
+                .setContentText(title)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .build()
+
+            NotificationManagerCompat.from(context).notify(Random.nextInt(), notification)
+
+        }
+    }
+}
+
+fun scheduleNotification(context: Context, timeInMillis: Long,taskId: Int, title: String) {
+    val pendingIntent = getAlarmPendingIntent(context, taskId, title)
+
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || alarmManager.canScheduleExactAlarms()) {
+        alarmManager.setExactAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            timeInMillis,
+            pendingIntent
+        )
+    }
+}
+
+fun getAlarmPendingIntent(context: Context, taskId: Int, title: String): PendingIntent {
+    val intent = Intent(context, ReminderReceiver::class.java).apply {
+        putExtra("title", title)
+    }
+
+    return PendingIntent.getBroadcast(
+        context,
+        taskId,
+        intent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+}
+
+fun cancelNotification(context: Context, taskId: Int, title: String) {
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    val pendingIntent = getAlarmPendingIntent(context, taskId, title)
+    alarmManager.cancel(pendingIntent)
 }

@@ -56,6 +56,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CheckCircle
@@ -82,14 +83,18 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import com.example.todo.cancelNotification
+import com.example.todo.createNotificationChannel
 import com.example.todo.getFileNameFromUri
 import com.example.todo.loadPreferenceListString
 import com.example.todo.loadPreferenceString
 import com.example.todo.openFile
 import com.example.todo.savePreferenceListString
 import com.example.todo.savePreferenceString
+import com.example.todo.scheduleNotification
 import com.example.todo.ui.theme.emerald
 import com.example.todo.ui.theme.prussianBlue
 import kotlinx.coroutines.withContext
@@ -101,7 +106,12 @@ import java.time.format.DateTimeFormatter
 
 @Composable
 fun ToDoApp() {
+    val context = LocalContext.current
     val navController = rememberNavController()
+
+    // Create a notification channel
+    createNotificationChannel(context)
+
     NavHost(navController = navController, startDestination = "home") {
         composable("home") {
             HomeScreen(
@@ -132,7 +142,7 @@ fun EditTaskScreen(taskId: Long, onBack: () -> Unit) {
     val db = DatabaseProvider.getDatabase(context)
     val taskDao = db.taskDao()
     val coroutineScope = rememberCoroutineScope()
-
+    val notificationTimeBefore = context.getString(R.string.notification_time_before_key)
     var task = remember { mutableStateOf<Task?>(null) }
 
     // Load task from DB
@@ -145,7 +155,25 @@ fun EditTaskScreen(taskId: Long, onBack: () -> Unit) {
             initialTask = t,
             onSave = { updatedTask ->
                 coroutineScope.launch {
+                    // Get current notification time
+                    val notificationLeadTime = loadPreferenceString(context,notificationTimeBefore) ?: "5"
+                    val notificationTimeMils = notificationLeadTime.toLong() * 60 * 1000
+
+                    // Cancel notification if exists
+                    cancelNotification(context, updatedTask.id, updatedTask.title)
+
                     taskDao.updateTask(updatedTask.copy(id = taskId.toInt()))
+
+                    // Set new notification if enabled
+                    if (updatedTask.notify && updatedTask.dueTime - notificationTimeMils > System.currentTimeMillis()) {
+                        scheduleNotification(
+                            context = context,
+                            timeInMillis = updatedTask.dueTime,
+                            taskId = updatedTask.id,
+                            title = updatedTask.title
+                        )
+                    }
+
                     withContext(Dispatchers.Main) {
                         onBack()
                     }
@@ -153,6 +181,9 @@ fun EditTaskScreen(taskId: Long, onBack: () -> Unit) {
             },
             onDelete = { deletedTask ->
                 coroutineScope.launch {
+
+                    cancelNotification(context, deletedTask.id, deletedTask.title)
+
                     taskDao.deleteTask(deletedTask.copy(id = taskId.toInt()))
                     withContext(Dispatchers.Main) {
                         onBack()
@@ -690,6 +721,9 @@ fun AddTaskScreen(onBack: () -> Unit) {
     var notify = remember { mutableStateOf(false) }
     var attachments = remember { mutableStateListOf<Uri>() }
 
+    // Notification key
+    val notificationTimeBefore = context.getString(R.string.notification_time_before_key)
+
     // Date and time
     val calendar = Calendar.getInstance()
     val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
@@ -843,11 +877,16 @@ fun AddTaskScreen(onBack: () -> Unit) {
 
             Button(
                 onClick = {
+                    // Get a lead time before not
+                    val notificationLeadTime = loadPreferenceString(context,notificationTimeBefore) ?: "5"
+                    val notificationTimeMils = notificationLeadTime.toLong() * 60 * 1000
+
                     val time = try {
                         LocalDateTime.parse(dueDate.value, formatter).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                     } catch (e : Exception) {
                         0L
                     }
+
 
                     CoroutineScope(Dispatchers.IO).launch {
                         val task = Task(
@@ -860,8 +899,19 @@ fun AddTaskScreen(onBack: () -> Unit) {
                             creationTime = System.currentTimeMillis(),
                             attachments = attachments.map { it.toString() }
                         )
-                        // Insert task do database
-                        taskDao.insertTask(task)
+
+                        // Insert and get id
+                        val id = taskDao.insertTask(task).toInt()
+
+                        // Add a notification
+                        if (task.notify && task.dueTime - notificationTimeMils > System.currentTimeMillis()) {
+                            scheduleNotification(
+                                context = context,
+                                timeInMillis = task.dueTime - notificationTimeMils,
+                                title = task.title,
+                                taskId = id
+                            )
+                        }
                     }
                     // Go back to home
                     onBack()
@@ -944,7 +994,9 @@ fun SettingsScreen(onBack: () -> Unit) {
     val showCategories = remember { mutableStateOf(false) }
 
     val hideCompleted = remember { mutableStateOf(prefs.getBoolean("hide_completed", false)) }
-    val notificationLeadTime = remember { mutableIntStateOf(prefs.getInt(notificationTimeBefore, 5)) }
+    val notificationLeadTime = remember {
+        mutableStateOf(loadPreferenceString(context, notificationTimeBefore) ?: "5")
+    }
 
     Scaffold(
         topBar = {
@@ -964,6 +1016,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+
+            // Add category field and uder it button to show current categories
             Text("Add Category", style = MaterialTheme.typography.titleMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
@@ -1020,6 +1074,7 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             Spacer(modifier = Modifier.padding(top = 8.dp))
 
+            // A button to hide done tasks
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1042,14 +1097,17 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Text("Notification lead time (minutes):")
                 Spacer(modifier = Modifier.width(8.dp))
                 OutlinedTextField(
-                    value = notificationLeadTime.intValue.toString(),
-                    onValueChange = {
-                        // Saving notification time before
-                        val parsed = it.toIntOrNull() ?: 0
-                        notificationLeadTime.intValue = parsed
-                        savePreferenceString(context = context,notificationTimeBefore,notificationLeadTime.toString())
+                    value = notificationLeadTime.value,
+                    onValueChange = {input ->
+                        if (input.all { it.isDigit() }) { // Allow digits
+                            notificationLeadTime.value = input
+                            savePreferenceString(context, notificationTimeBefore, input)
+                        }
                     },
-                    modifier = Modifier.width(80.dp)
+                    modifier = Modifier.width(80.dp),
+                    keyboardOptions = KeyboardOptions.Default.copy(
+                        keyboardType = KeyboardType.Number
+                    ),
                 )
             }
         }
