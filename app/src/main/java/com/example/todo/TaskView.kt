@@ -2,6 +2,7 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -852,7 +853,7 @@ fun AddTaskScreen(onBack: () -> Unit) {
             )
 
             // Attachments Section
-           //
+
 
             Button(onClick = {
                 filePickerLauncher.launch("*/*")
@@ -887,7 +888,6 @@ fun AddTaskScreen(onBack: () -> Unit) {
                         0L
                     }
 
-
                     CoroutineScope(Dispatchers.IO).launch {
                         val task = Task(
                             title = title.value,
@@ -903,8 +903,13 @@ fun AddTaskScreen(onBack: () -> Unit) {
                         // Insert and get id
                         val id = taskDao.insertTask(task).toInt()
 
+                        val timeToNot = task.dueTime - notificationTimeMils
+                        val date = Date(timeToNot)
+                        val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                        Log.d("ReminderDebug", "Notification will fire at: ${formatter.format(date)}")
+
                         // Add a notification
-                        if (task.notify && task.dueTime - notificationTimeMils > System.currentTimeMillis()) {
+                        if (task.notify && timeToNot > System.currentTimeMillis()) {
                             scheduleNotification(
                                 context = context,
                                 timeInMillis = task.dueTime - notificationTimeMils,
