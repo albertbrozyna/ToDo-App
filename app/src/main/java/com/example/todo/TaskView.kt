@@ -107,9 +107,16 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun ToDoApp() {
-    val context = LocalContext.current
+fun ToDoApp(startTaskId: Int? = null) {
     val navController = rememberNavController()
+
+    LaunchedEffect(startTaskId) {
+        if (startTaskId != null) {
+            navController.navigate("edit_task/$startTaskId")
+        }
+    }
+
+    val context = LocalContext.current
 
     // Create a notification channel
     createNotificationChannel(context)

@@ -21,8 +21,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            ToDoTheme {
-                ToDoApp()
+            val taskIdFromNotification = intent?.getIntExtra("taskId", -1)?.takeIf { it != -1 }
+
+            setContent {
+                ToDoApp(startTaskId = taskIdFromNotification)
             }
         }
     }

@@ -108,11 +108,27 @@ class ReminderReceiver : BroadcastReceiver() {
 
             val title = intent.getStringExtra("title") ?: "Task Reminder"
 
+            val taskId = intent.getIntExtra("taskId", -1)
+
+            val openIntent = Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                putExtra("taskId", taskId)
+            }
+
+            val openPendingIntent = PendingIntent.getActivity(
+                context,
+                taskId,
+                openIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
             val notification = NotificationCompat.Builder(context, "todo_channel_id")
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentTitle("Reminder")
                 .setContentText(title)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setContentIntent(openPendingIntent)
+                .setAutoCancel(true)
                 .build()
 
             NotificationManagerCompat.from(context).notify(Random.nextInt(), notification)
@@ -138,6 +154,7 @@ fun scheduleNotification(context: Context, timeInMillis: Long,taskId: Int, title
 fun getAlarmPendingIntent(context: Context, taskId: Int, title: String): PendingIntent {
     val intent = Intent(context, ReminderReceiver::class.java).apply {
         putExtra("title", title)
+        putExtra("taskId", taskId)
     }
 
     return PendingIntent.getBroadcast(
