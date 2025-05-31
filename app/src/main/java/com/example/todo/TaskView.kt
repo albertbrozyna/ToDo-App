@@ -354,6 +354,18 @@ fun TaskCard(
                     style = MaterialTheme.typography.bodySmall
                 )
             }
+
+
+        }
+
+        // If there are any attachments show them
+        if (task.attachments.isNotEmpty()) {
+            Icon(
+                imageVector = Icons.Default.AttachFile,
+                contentDescription = "Attachments",
+                tint = Color.Gray,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
