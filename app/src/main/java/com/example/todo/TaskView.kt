@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Settings
@@ -105,6 +104,11 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.runtime.*
+
 
 @Composable
 fun ToDoApp(startTaskId: Int? = null) {
@@ -218,9 +222,9 @@ fun HomeScreen(
     val taskDao = db.taskDao()
 
     var tasks = remember { mutableStateOf<List<Task>>(emptyList()) }
+    var searchQuery = remember { mutableStateOf("") }
 
     val hideDoneKey = context.getString(R.string.hide_done_key)
-
     val hideCompleted = remember {
         mutableStateOf(
             loadPreferenceString(context, hideDoneKey)?.toBooleanStrictOrNull() == true
@@ -236,8 +240,28 @@ fun HomeScreen(
         }
     }
 
+    // Filter tasks based on search query
+    val filteredTasks = tasks.value.filter {
+        it.title.contains(searchQuery.value, ignoreCase = true)
+    }
+
     Scaffold(
-        topBar = { TopBar(onSettingsClick = onSettingsClick) },
+        topBar = {
+            Column {
+                // Top bar
+                TopBar(onSettingsClick = onSettingsClick)
+                // Searcher to look for task by title
+                OutlinedTextField(
+                    value = searchQuery.value,
+                    onValueChange = { searchQuery.value = it },
+                    placeholder = { Text("Search tasks...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onAddTaskClick,
@@ -247,14 +271,14 @@ fun HomeScreen(
             }
         }
     ) { paddingValues ->
-        if (tasks.value.isEmpty()) {    // If no tasks show a text
+        if (filteredTasks.isEmpty()) {
             Box(
                 modifier = modifier
                     .fillMaxSize()
                     .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
-                Text("No tasks yet.")
+                Text("No tasks found.")
             }
         } else {
             LazyColumn(
@@ -264,9 +288,9 @@ fun HomeScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(tasks.value) { task ->
-                    TaskCard(task = task, onNavigate = onNavigateTask) { updatedTask ->
-                        val updatedTask = task.copy(isCompleted = !task.isCompleted)    // Switch task status
+                items(filteredTasks) { task ->
+                    TaskCard(task = task, onNavigate = onNavigateTask) {
+                        val updatedTask = task.copy(isCompleted = !task.isCompleted)
 
                         CoroutineScope(Dispatchers.IO).launch {
                             taskDao.updateTask(updatedTask)
@@ -283,6 +307,7 @@ fun HomeScreen(
         }
     }
 }
+
 
 @Composable
 fun TaskCard(
