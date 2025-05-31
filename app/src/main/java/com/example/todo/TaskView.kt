@@ -249,7 +249,19 @@ fun HomeScreen(
         topBar = {
             Column {
                 // Top bar
-                TopBar(onSettingsClick = onSettingsClick)
+                TopBar(
+                    onSettingsClick = onSettingsClick,
+                    onClearAllTasks = {
+                        CoroutineScope(Dispatchers.IO).launch {
+                            taskDao.deleteAllTasks()
+                            tasks.value = emptyList()
+                        }
+                    },
+                    onSortTasks = {
+                        tasks.value = tasks.value.sortedBy { it.dueTime }
+                    }
+                )
+
                 // Searcher to look for task by title
                 OutlinedTextField(
                     value = searchQuery.value,
@@ -984,30 +996,55 @@ fun AddTaskScreen(onBack: () -> Unit) {
 
 
 
-
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopBar(
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onClearAllTasks: () -> Unit,
+    onSortTasks: () -> Unit
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
+    var showDialog by remember { mutableStateOf(false) }
+
     TopAppBar(
         title = {
             Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = "To Do",
-                    modifier = Modifier
-                        .align(Alignment.Center),
+                    modifier = Modifier.align(Alignment.Center),
                     style = MaterialTheme.typography.titleLarge
                 )
             }
         },
         navigationIcon = {
-            IconButton(onClick = { /* TODO: handle list icon click */ }) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.List,
-                    contentDescription = "List"
-                )
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.List,
+                        contentDescription = "Menu"
+                    )
+                }
+
+                // Menu on the left
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Sort by time") },
+                        onClick = {
+                            menuExpanded = false
+                            onSortTasks()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Clear all tasks") },
+                        onClick = {
+                            menuExpanded = false
+                            showDialog = true
+                        }
+                    )
+                }
             }
         },
         actions = {
@@ -1025,7 +1062,52 @@ fun TopBar(
             actionIconContentColor = Color.White
         )
     )
+
+    if(showDialog){
+    AlertDialog(
+        onDismissRequest = { showDialog = false },
+        title = {
+            Text(
+                text = "Delete all tasks? ?",
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    "Are you sure you want to delete all tasks?",
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    TextButton(onClick = {showDialog = false }) {
+                        Text("Cancel")
+                    }
+                    TextButton(onClick = {
+                        showDialog = false
+                        onClearAllTasks()
+                    }) {
+                        Text("Delete all tasks", color = Color.Red)
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {}
+    )
 }
+}
+
+
+
+
 
 
 
