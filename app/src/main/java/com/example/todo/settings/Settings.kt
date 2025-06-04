@@ -53,6 +53,8 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     val categories = remember { mutableStateListOf<String>().apply { addAll(loadPreferenceListString(context,categoriesKey)) } }
     val newCategory = remember { mutableStateOf("") }
+
+    // Toggle visibility of categories
     val showCategories = remember { mutableStateOf(false) }
 
     val hideCompleted = remember { mutableStateOf(prefs.getBoolean("hide_completed", false)) }
@@ -100,8 +102,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
             }
 
-            // Toggle visibility of categories
-            val showCategories = remember { mutableStateOf(false) }
+
 
             // Categories settings section
 

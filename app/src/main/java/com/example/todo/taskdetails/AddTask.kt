@@ -26,7 +26,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -48,7 +47,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.todo.DatabaseProvider
@@ -157,21 +155,24 @@ fun AddTaskScreen(onBack: () -> Unit) {
             )
         }
     ) { paddingValues ->
-            Column(modifier = Modifier
+        Column(
+            modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(16.dp)
                 .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+
 
             // Title
             OutlinedTextField(
                 value = title.value,
                 onValueChange = {
                     title.value = it
-                    isError.value = it.isBlank() //Show error if it is empty
+                    isError.value = it.isBlank()
                 },
+                isError = isError.value,
                 label = { Text("Title") },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -253,13 +254,15 @@ fun AddTaskScreen(onBack: () -> Unit) {
 
                 )
                 // Enabling notifications
-                Switch(checked = notify.value, onCheckedChange = { notify.value = it },
+                Switch(
+                    checked = notify.value, onCheckedChange = { notify.value = it },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
                         uncheckedThumbColor = Color.White,
                         checkedTrackColor = emerald,
                         uncheckedTrackColor = Color.Gray
-                    ))
+                    )
+                )
             }
 
             // Attachments section
@@ -268,8 +271,7 @@ fun AddTaskScreen(onBack: () -> Unit) {
                     filePickerLauncher.launch("*/*") // Allow any file type
                 },
                 modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                , shape = RoundedCornerShape(6.dp),
+                    .align(Alignment.CenterHorizontally), shape = RoundedCornerShape(6.dp),
                 colors = ButtonDefaults.buttonColors(
                     contentColor = Color.White,
                     containerColor = prussianBlue
@@ -288,7 +290,10 @@ fun AddTaskScreen(onBack: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .padding(4.dp)
-                            .background(Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
+                            .background(
+                                Color.LightGray.copy(alpha = 0.3f),
+                                RoundedCornerShape(4.dp)
+                            )
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
@@ -307,17 +312,20 @@ fun AddTaskScreen(onBack: () -> Unit) {
                             Icon(Icons.Default.Close, contentDescription = "Remove Attachment")
                         }
                     }
-                }   }
+                }
+            }
 
             Button(
                 onClick = {
                     // Get a lead time before not
-                    val notificationLeadTime = loadPreferenceString(context,notificationTimeBefore) ?: "5"
+                    val notificationLeadTime =
+                        loadPreferenceString(context, notificationTimeBefore) ?: "5"
                     val notificationTimeMils = notificationLeadTime.toLong() * 60 * 1000
 
                     val time = try {
-                        LocalDateTime.parse(dueDate.value, formatter).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                    } catch (e : Exception) {
+                        LocalDateTime.parse(dueDate.value, formatter).atZone(ZoneId.systemDefault())
+                            .toInstant().toEpochMilli()
+                    } catch (e: Exception) {
                         0L
                     }
 
@@ -360,17 +368,20 @@ fun AddTaskScreen(onBack: () -> Unit) {
                                 )
                             }
                         }
-                        // Go back to home
+
+                    }
+                    // Go back to home
+                    if (!title.value.isBlank()) {
                         onBack()
                     }
+
                 },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = emerald,
                     contentColor = Color.White
                 ),
                 modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                , shape = RoundedCornerShape(6.dp)
+                    .align(Alignment.CenterHorizontally), shape = RoundedCornerShape(6.dp)
 
             ) {
                 Text("Add Task")

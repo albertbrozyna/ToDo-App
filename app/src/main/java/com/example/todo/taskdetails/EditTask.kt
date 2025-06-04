@@ -98,7 +98,8 @@ fun EditTaskScreen(taskId: Long, onBack: () -> Unit) {
             onSave = { updatedTask ->
                 coroutineScope.launch {
                     // Get current notification time
-                    val notificationLeadTime = loadPreferenceString(context,notificationTimeBefore) ?: "5"
+                    val notificationLeadTime =
+                        loadPreferenceString(context, notificationTimeBefore) ?: "5"
                     val notificationTimeMils = notificationLeadTime.toLong() * 60 * 1000
 
                     // Cancel notification if exists
@@ -176,11 +177,16 @@ fun EditTaskContent(
     var selectedTime = remember { mutableStateOf<LocalTime?>(null) }
     val openDialog = remember { mutableStateOf(false) }
 
-    val dueDate = remember { mutableStateOf(
-        if (initialTask.dueTime > 0L)
-            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(initialTask.dueTime))
-        else ""
-    )}
+    val dueDate = remember {
+        mutableStateOf(
+            if (initialTask.dueTime > 0L)
+                SimpleDateFormat(
+                    "yyyy-MM-dd HH:mm",
+                    Locale.getDefault()
+                ).format(Date(initialTask.dueTime))
+            else ""
+        )
+    }
 
     // Time Picker
     val timePickerDialog = TimePickerDialog(
@@ -295,11 +301,12 @@ fun EditTaskContent(
             )
         }
     ) { paddingValues ->
-        Column(modifier = Modifier
-            .fillMaxSize()
-            .padding(paddingValues)
-            .padding(16.dp)
-            .verticalScroll(scrollState),
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(16.dp)
+                .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 
@@ -398,13 +405,15 @@ fun EditTaskContent(
 
                 )
                 // Enabling notifications
-                Switch(checked = notify.value, onCheckedChange = { notify.value = it },
+                Switch(
+                    checked = notify.value, onCheckedChange = { notify.value = it },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
                         uncheckedThumbColor = Color.White,
                         checkedTrackColor = emerald,
                         uncheckedTrackColor = Color.Gray
-                    ))
+                    )
+                )
             }
 
 
@@ -414,8 +423,7 @@ fun EditTaskContent(
                     filePickerLauncher.launch("*/*") // Allow any file type
                 },
                 modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                , shape = RoundedCornerShape(6.dp),
+                    .align(Alignment.CenterHorizontally), shape = RoundedCornerShape(6.dp),
                 colors = ButtonDefaults.buttonColors(
                     contentColor = Color.White,
                     containerColor = prussianBlue
@@ -434,7 +442,10 @@ fun EditTaskContent(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .padding(4.dp)
-                            .background(Color.LightGray.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
+                            .background(
+                                Color.LightGray.copy(alpha = 0.3f),
+                                RoundedCornerShape(4.dp)
+                            )
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
@@ -453,7 +464,8 @@ fun EditTaskContent(
                             Icon(Icons.Default.Close, contentDescription = "Remove Attachment")
                         }
                     }
-                }   }
+                }
+            }
 
 
             // Save button
@@ -487,8 +499,7 @@ fun EditTaskContent(
                     contentColor = Color.White
                 ),
                 modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                , shape = RoundedCornerShape(6.dp)
+                    .align(Alignment.CenterHorizontally), shape = RoundedCornerShape(6.dp)
             ) {
                 Text("Save", color = Color.White)
             }
