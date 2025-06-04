@@ -31,10 +31,20 @@ fun ToDoApp(startTaskId: Int? = null) {
     NavHost(navController = navController, startDestination = "home") {
         composable("home") {
             HomeScreen(
-                onAddTaskClick = { navController.navigate("add_task") },
-                onSettingsClick = { navController.navigate("settings")},
+                onAddTaskClick = {
+                    navController.navigate("add_task") {
+                        launchSingleTop = true
+                    }
+                },
+                onSettingsClick = {
+                    navController.navigate("settings") {
+                        launchSingleTop = true
+                    }
+                },
                 onNavigateTask = { task ->
-                    navController.navigate("edit_task/${task.id}")
+                    navController.navigate("edit_task/${task.id}") {
+                        launchSingleTop = true
+                    }
                 }
             )
         }

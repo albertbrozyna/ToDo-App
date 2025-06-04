@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,6 +33,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -39,6 +42,7 @@ import com.example.todo.loadPreferenceListString
 import com.example.todo.loadPreferenceString
 import com.example.todo.savePreferenceListString
 import com.example.todo.savePreferenceString
+import com.example.todo.ui.theme.emerald
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,7 +85,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 
-            // Add category field and uder it button to show current categories
+            // Add category field and under it button to show current categories
             Text("Add Category", style = MaterialTheme.typography.titleMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
@@ -91,21 +95,34 @@ fun SettingsScreen(onBack: () -> Unit) {
                     modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Button(onClick = {
-                    if (newCategory.value.isNotBlank() && !categories.contains(newCategory.value)) {
-                        categories.add(newCategory.value)
-                        savePreferenceListString(context, categoriesKey, categories)
-                        newCategory.value = ""
-                    }
-                }) {
-                    Text("Add")
+                // Adding categories
+                Button(
+                    onClick = {
+                        if (newCategory.value.isNotBlank() && !categories.contains(newCategory.value)) {
+                            categories.add(newCategory.value)
+                            savePreferenceListString(context, categoriesKey, categories)
+                            newCategory.value = ""
+                        }
+                    },
+                    modifier = Modifier
+                        .padding(vertical = 8.dp)
+                        .fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = emerald,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text(
+                        text = "Add category",
+                        style = MaterialTheme.typography.titleMedium
+                    )
                 }
             }
 
 
 
             // Categories settings section
-
             TextButton(onClick = { showCategories.value = !showCategories.value }) {
                 Text(if (showCategories.value) "Hide Categories" else "Show Categories")
             }
@@ -128,7 +145,11 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 categories.remove(category)
                                 savePreferenceListString(context, categoriesKey, categories)
                             }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete category")
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "Delete category",
+                                    tint = Color.Red
+                                )
                             }
                         }
                     }
@@ -145,7 +166,6 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Spacer(modifier = Modifier.width(8.dp))
                 Switch(
                     checked = hideCompleted.value,
-                    // Save if we need to hide done tasks
                     onCheckedChange = {
                         hideCompleted.value = it
                         savePreferenceString(context = context,hideDoneKey,hideCompleted.value.toString())
@@ -162,7 +182,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 OutlinedTextField(
                     value = notificationLeadTime.value,
                     onValueChange = {input ->
-                        if (input.all { it.isDigit() }) { // Allow digits
+                        if (input.all { it.isDigit() }) {
                             notificationLeadTime.value = input
                             savePreferenceString(context, notificationTimeBefore, input)
                         }
