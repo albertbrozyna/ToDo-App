@@ -39,6 +39,9 @@ interface TaskDao {
     @Delete
     suspend fun deleteTask(task: Task)
 
+    @Query("DELETE FROM tasks")
+    suspend fun deleteAllTasks()
+
     @Query("SELECT * FROM tasks ORDER BY dueTime ASC")
     suspend fun getAllTasks(): List<Task>
 
