@@ -282,39 +282,45 @@ fun AddTaskScreen(onBack: () -> Unit) {
                 Text("Add Attachment")
             }
 
+            // Attachment list
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                LazyRow {
+                    itemsIndexed(attachments) { index, uri ->
 
-            LazyRow {
-                itemsIndexed(attachments) { index, uri ->
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .padding(4.dp)
-                            .background(
-                                Color.LightGray.copy(alpha = 0.3f),
-                                RoundedCornerShape(4.dp)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .background(
+                                    Color.LightGray.copy(alpha = 0.3f),
+                                    RoundedCornerShape(4.dp)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = getFileNameFromUri(context, uri),
+                                modifier = Modifier.clickable {
+                                    openFile(context, uri)
+                                },
+                                fontSize = 14.sp,
+                                color = Color.DarkGray
                             )
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = getFileNameFromUri(context, uri),
-                            modifier = Modifier.clickable {
-                                openFile(context, uri)
-                            },
-                            fontSize = 14.sp,
-                            color = Color.DarkGray
-                        )
 
-                        Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(onClick = {
-                            attachments.remove(uri)
-                        }) {
-                            Icon(Icons.Default.Close, contentDescription = "Remove Attachment")
+                            Spacer(modifier = Modifier.width(8.dp))
+                            IconButton(onClick = {
+                                attachments.remove(uri)
+                            }) {
+                                Icon(Icons.Default.Close, contentDescription = "Remove Attachment")
+                            }
                         }
                     }
                 }
             }
 
+            // Add task
             Button(
                 onClick = {
                     // Get a lead time before not

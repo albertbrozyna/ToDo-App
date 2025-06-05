@@ -2,6 +2,7 @@ package com.example.todo.taskdetails
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -222,6 +223,16 @@ fun EditTaskContent(
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents(),
         onResult = { uris: List<Uri> ->
+            uris.forEach { uri ->
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: SecurityException) {
+
+                }
+            }
             attachments.addAll(uris)
         }
     )
@@ -434,12 +445,19 @@ fun EditTaskContent(
                 Text("Add Attachment")
             }
 
+            // Attachment list
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ){
             Text("Attachments: (${attachments.size})")
+
             LazyRow {
                 itemsIndexed(attachments) { index, uri ->
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
                             .padding(4.dp)
                             .background(
@@ -466,43 +484,42 @@ fun EditTaskContent(
                     }
                 }
             }
+        }
 
-
-            // Save button
-            Button(
-                onClick = {
-                    if (title.value.isBlank()) {
-                        isError.value = true
+        // Save button
+        Button(
+            onClick = {
+                if (title.value.isBlank()) {
+                    isError.value = true
+                } else {
+                    isError.value = false
+                    val dueTimeMillis = if (dueDate.value.isNotBlank()) {
+                        formatter.parse(dueDate.value)?.time ?: 0L
                     } else {
-                        isError.value = false
-                        val dueTimeMillis = if (dueDate.value.isNotBlank()) {
-                            formatter.parse(dueDate.value)?.time ?: 0L
-                        } else {
-                            0L
-                        }
-
-                        val updatedTask = initialTask.copy(
-                            title = title.value.trim(),
-                            description = description.value.trim(),
-                            category = category.value,
-                            notify = notify.value,
-                            attachments = attachments.map { it.toString() },
-                            dueTime = dueTimeMillis
-                        )
-
-                        onSave(updatedTask)
-                        onBack()
+                        0L
                     }
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = emerald,
-                    contentColor = Color.White
-                ),
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally), shape = RoundedCornerShape(6.dp)
-            ) {
-                Text("Save", color = Color.White)
-            }
+
+                    val updatedTask = initialTask.copy(
+                        title = title.value.trim(),
+                        description = description.value.trim(),
+                        category = category.value,
+                        notify = notify.value,
+                        attachments = attachments.map { it.toString() },
+                        dueTime = dueTimeMillis
+                    )
+
+                    onSave(updatedTask)
+                }
+            },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = emerald,
+                contentColor = Color.White
+            ),
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally), shape = RoundedCornerShape(6.dp)
+        ) {
+            Text("Save", color = Color.White)
         }
     }
+}
 }

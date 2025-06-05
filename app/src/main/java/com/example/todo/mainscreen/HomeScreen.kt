@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.todo.DatabaseProvider
 import com.example.todo.R
@@ -341,24 +342,34 @@ fun TaskCard(
         ) {
             Text(text = task.title, style = MaterialTheme.typography.titleMedium)
 
+            // Description
             if (task.description.isNotBlank()) {
-                Text(text = task.description, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = task.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
 
+            // Time
             if (task.dueTime > 0L) {
                 Text(
                     text = "Due: ${Date(task.dueTime)}",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
-
+            // Category
             if (task.category.isNotBlank()) {
                 Text(
                     text = "Category: ${task.category}",
-                    style = MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
+            // Notifications
             if (task.notify) {
                 Text(
                     text = "Notifications On",

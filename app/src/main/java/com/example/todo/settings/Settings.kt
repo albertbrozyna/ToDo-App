@@ -48,7 +48,6 @@ import com.example.todo.ui.theme.emerald
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-    val prefs = context.getSharedPreferences(context.getString(R.string.app_name), Context.MODE_PRIVATE)
 
     // Preferences key
     val categoriesKey = context.getString(R.string.categories_key)
@@ -61,7 +60,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     // Toggle visibility of categories
     val showCategories = remember { mutableStateOf(false) }
 
-    val hideCompleted = remember { mutableStateOf(prefs.getBoolean("hide_completed", false)) }
+    val hideCompleted = remember { mutableStateOf(loadPreferenceString(context = context,hideDoneKey)) }
     val notificationLeadTime = remember {
         mutableStateOf(loadPreferenceString(context, notificationTimeBefore) ?: "5")
     }
@@ -105,8 +104,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         }
                     },
                     modifier = Modifier
-                        .padding(vertical = 8.dp)
-                        .fillMaxWidth(),
+                        .padding(vertical = 8.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = emerald,
@@ -114,7 +112,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     )
                 ) {
                     Text(
-                        text = "Add category",
+                        text = "Add",
                         style = MaterialTheme.typography.titleMedium
                     )
                 }
@@ -165,9 +163,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Text("Hide Completed Tasks")
                 Spacer(modifier = Modifier.width(8.dp))
                 Switch(
-                    checked = hideCompleted.value,
+                    checked = hideCompleted.value.toBoolean(),
                     onCheckedChange = {
-                        hideCompleted.value = it
+                        hideCompleted.value = it.toString()
                         savePreferenceString(context = context,hideDoneKey,hideCompleted.value.toString())
                     }
                 )
@@ -181,8 +179,11 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Spacer(modifier = Modifier.width(8.dp))
                 OutlinedTextField(
                     value = notificationLeadTime.value,
-                    onValueChange = {input ->
-                        if (input.all { it.isDigit() }) {
+                    onValueChange = { input ->
+                        if (input.isEmpty()) {
+                            notificationLeadTime.value = "0"
+                            savePreferenceString(context, notificationTimeBefore, "0")
+                        } else if (input.all { it.isDigit() }) {
                             notificationLeadTime.value = input
                             savePreferenceString(context, notificationTimeBefore, input)
                         }
