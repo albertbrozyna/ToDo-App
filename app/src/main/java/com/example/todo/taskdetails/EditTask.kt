@@ -11,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -449,77 +451,83 @@ fun EditTaskContent(
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
-            ){
-            Text("Attachments: (${attachments.size})")
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Attachments: (${attachments.size})")
 
-            LazyRow {
-                itemsIndexed(attachments) { index, uri ->
-
-
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .padding(4.dp)
-                            .background(
-                                Color.LightGray.copy(alpha = 0.3f),
-                                RoundedCornerShape(4.dp)
-                            )
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = getFileNameFromUri(context, uri),
-                            modifier = Modifier.clickable {
-                                openFile(context, uri)
-                            },
-                            fontSize = 14.sp,
-                            color = Color.DarkGray
-                        )
+                        itemsIndexed(attachments) { index, uri ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .background(
+                                        Color.LightGray.copy(alpha = 0.3f),
+                                        RoundedCornerShape(4.dp)
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = getFileNameFromUri(context, uri),
+                                    modifier = Modifier.clickable {
+                                        openFile(context, uri)
+                                    },
+                                    fontSize = 14.sp,
+                                    color = Color.DarkGray
+                                )
 
-                        Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(onClick = {
-                            attachments.remove(uri)
-                        }) {
-                            Icon(Icons.Default.Close, contentDescription = "Remove Attachment")
+                                Spacer(modifier = Modifier.width(4.dp))
+                                IconButton(onClick = {
+                                    attachments.remove(uri)
+                                }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Remove Attachment")
+                                }
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // Save button
-        Button(
-            onClick = {
-                if (title.value.isBlank()) {
-                    isError.value = true
-                } else {
-                    isError.value = false
-                    val dueTimeMillis = if (dueDate.value.isNotBlank()) {
-                        formatter.parse(dueDate.value)?.time ?: 0L
+
+            // Save button
+            Button(
+                onClick = {
+                    if (title.value.isBlank()) {
+                        isError.value = true
                     } else {
-                        0L
+                        isError.value = false
+                        val dueTimeMillis = if (dueDate.value.isNotBlank()) {
+                            formatter.parse(dueDate.value)?.time ?: 0L
+                        } else {
+                            0L
+                        }
+
+                        val updatedTask = initialTask.copy(
+                            title = title.value.trim(),
+                            description = description.value.trim(),
+                            category = category.value,
+                            notify = notify.value,
+                            attachments = attachments.map { it.toString() },
+                            dueTime = dueTimeMillis
+                        )
+
+                        onSave(updatedTask)
                     }
-
-                    val updatedTask = initialTask.copy(
-                        title = title.value.trim(),
-                        description = description.value.trim(),
-                        category = category.value,
-                        notify = notify.value,
-                        attachments = attachments.map { it.toString() },
-                        dueTime = dueTimeMillis
-                    )
-
-                    onSave(updatedTask)
-                }
-            },
-            colors = ButtonDefaults.buttonColors(
-                containerColor = emerald,
-                contentColor = Color.White
-            ),
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally), shape = RoundedCornerShape(6.dp)
-        ) {
-            Text("Save", color = Color.White)
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = emerald,
+                    contentColor = Color.White
+                ),
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally), shape = RoundedCornerShape(6.dp)
+            ) {
+                Text("Save", color = Color.White)
+            }
         }
     }
-}
 }

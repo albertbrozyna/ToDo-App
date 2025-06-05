@@ -2,6 +2,7 @@ package com.example.todo.taskdetails
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -130,9 +131,20 @@ fun AddTaskScreen(onBack: () -> Unit) {
         calendar.get(Calendar.DAY_OF_MONTH)
     )
 
+    // File picker launcher
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents(),
         onResult = { uris: List<Uri> ->
+            uris.forEach { uri ->
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: SecurityException) {
+
+                }
+            }
             attachments.addAll(uris)
         }
     )
@@ -290,8 +302,8 @@ fun AddTaskScreen(onBack: () -> Unit) {
                 LazyRow {
                     itemsIndexed(attachments) { index, uri ->
 
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .padding(4.dp)
                                 .background(
@@ -320,7 +332,7 @@ fun AddTaskScreen(onBack: () -> Unit) {
                 }
             }
 
-            // Add task
+            // Add button
             Button(
                 onClick = {
                     // Get a lead time before not

@@ -143,8 +143,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 .setAutoCancel(true)
                 .build()
 
-            NotificationManagerCompat.from(context).notify(Random.nextInt(), notification)
-
+            NotificationManagerCompat.from(context).notify(taskId, notification)
         }
     }
 }
