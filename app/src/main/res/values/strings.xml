@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">To Do</string>
+    <string name="categories_key">categories</string>
+    <string name="hide_done_key">hide_done</string>
+    <string name="notification_time_before_key">notification_before</string>
+    <string name="to_do_channel_id">to_do_channel_id</string>
 </resources>
