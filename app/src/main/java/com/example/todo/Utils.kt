@@ -13,6 +13,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
+import android.util.Log
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -62,26 +63,36 @@ fun loadPreferenceString(context: Context, key: String): String? {
     return sharedPreferences.getString(key, null)
 }
 
+// Function to open file
 fun openFile(context: Context, uri: Uri) {
+    // get file ext
+    val type = context.contentResolver.getType(uri) ?: "*/*"
     val intent = Intent(Intent.ACTION_VIEW).apply {
-        setDataAndType(uri, context.contentResolver.getType(uri))
-        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+        setDataAndType(uri, type)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
     }
     try {
         context.startActivity(intent)
     } catch (e: ActivityNotFoundException) {
-        Toast.makeText(context, "Brak aplikacji do otwarcia pliku", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "No app to open this file", Toast.LENGTH_SHORT).show()
     }
 }
 
 fun getFileNameFromUri(context: Context, uri: Uri): String {
     var result: String? = null
     if (uri.scheme == "content") {
-        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            if (nameIndex != -1 && cursor.moveToFirst()) {
-                result = cursor.getString(nameIndex)
+        try {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (nameIndex != -1 && cursor.moveToFirst()) {
+                    result = cursor.getString(nameIndex)
+                }
             }
+        } catch (e: SecurityException) {
+            Log.d(
+                "Exception open",
+                "exception"
+            )
         }
     }
     if (result == null) {
@@ -89,6 +100,7 @@ fun getFileNameFromUri(context: Context, uri: Uri): String {
     }
     return result ?: "Unknown"
 }
+
 
 fun createNotificationChannel(context: Context) {
     val channel = NotificationChannel(
@@ -131,8 +143,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 .setAutoCancel(true)
                 .build()
 
-            NotificationManagerCompat.from(context).notify(Random.nextInt(), notification)
-
+            NotificationManagerCompat.from(context).notify(taskId, notification)
         }
     }
 }

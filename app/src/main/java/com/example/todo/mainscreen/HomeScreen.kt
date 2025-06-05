@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.todo.DatabaseProvider
 import com.example.todo.R
@@ -192,6 +193,10 @@ fun HomeScreen(
     var tasks = remember { mutableStateOf<List<Task>>(emptyList()) }
     var searchQuery = remember { mutableStateOf("") }
 
+    // Searcher
+    var searchModeExpanded = remember { mutableStateOf(false) }
+    var searchMode = remember { mutableStateOf("Title") }
+
     val hideDoneKey = context.getString(R.string.hide_done_key)
     val hideCompleted = remember {
         mutableStateOf(
@@ -208,9 +213,15 @@ fun HomeScreen(
         }
     }
 
-    // Filter tasks based on search query
-    val filteredTasks = tasks.value.filter {
-        it.title.contains(searchQuery.value, ignoreCase = true)
+    // Filter tasks based on search query and chose mode
+    val filteredTasks = tasks.value.filter { task ->
+        val query = searchQuery.value.trim()
+        if (query.isEmpty()) true
+        else when (searchMode.value) {
+            "Title" -> task.title.contains(query, ignoreCase = true)
+            "Category" -> task.category.contains(query, ignoreCase = true)
+            else -> true
+        }
     }
 
     Scaffold(
@@ -234,15 +245,50 @@ fun HomeScreen(
                 )
 
                 // Searcher to look for task by title
-                OutlinedTextField(
-                    value = searchQuery.value,
-                    onValueChange = { searchQuery.value = it },
-                    placeholder = { Text("Search tasks...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                )
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = searchQuery.value,
+                        onValueChange = { searchQuery.value = it },
+                        placeholder = { Text("Search tasks...") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Box {
+                        TextButton(
+                            onClick = { searchModeExpanded.value = true }
+                        ) {
+                            Text(searchMode.value)
+                        }
+
+                        DropdownMenu(
+                            expanded = searchModeExpanded.value,
+                            onDismissRequest = { searchModeExpanded.value = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Title") },
+                                onClick = {
+                                    searchMode.value = "Title"
+                                    searchModeExpanded.value = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Category") },
+                                onClick = {
+                                    searchMode.value = "Category"
+                                    searchModeExpanded.value = false
+                                }
+                            )
+                        }
+                    }
+                }
             }
         },
         // Add button
@@ -341,24 +387,34 @@ fun TaskCard(
         ) {
             Text(text = task.title, style = MaterialTheme.typography.titleMedium)
 
+            // Description
             if (task.description.isNotBlank()) {
-                Text(text = task.description, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = task.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
 
+            // Time
             if (task.dueTime > 0L) {
                 Text(
                     text = "Due: ${Date(task.dueTime)}",
                     style = MaterialTheme.typography.bodySmall
                 )
             }
-
+            // Category
             if (task.category.isNotBlank()) {
                 Text(
                     text = "Category: ${task.category}",
-                    style = MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
 
+            // Notifications
             if (task.notify) {
                 Text(
                     text = "Notifications On",

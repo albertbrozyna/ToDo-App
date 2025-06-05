@@ -2,7 +2,9 @@ package com.example.todo.taskdetails
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -10,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -164,9 +168,22 @@ fun EditTaskContent(
     var expanded = remember { mutableStateOf(false) }
 
     val notify = remember { mutableStateOf(initialTask.notify) }
+
     val attachments = remember {
         mutableStateListOf<Uri>().apply {
-            addAll(initialTask.attachments.map { Uri.parse(it) })
+            initialTask.attachments.forEach { uriString ->
+                val uri = Uri.parse(uriString)
+                add(uri)
+
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (e: SecurityException) {
+                    Log.w("Permission", "Could not re-grant URI permission", e)
+                }
+            }
         }
     }
 
@@ -220,11 +237,28 @@ fun EditTaskContent(
 
     // File picker launcher
     val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetMultipleContents(),
-        onResult = { uris: List<Uri> ->
-            attachments.addAll(uris)
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val intent = result.data
+            if (intent != null) {
+
+                val uri = intent.data
+                if (uri != null) {
+                    try {
+
+                        context.contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                        )
+                        attachments.add(uri)
+                    } catch (e: SecurityException) {
+                        Log.e("FilePermission", "Failed to persist URI permission", e)
+                    }
+                }
+            }
         }
-    )
+    }
 
     var isError = remember { mutableStateOf(false) }
 
@@ -260,7 +294,7 @@ fun EditTaskContent(
                         TextButton(onClick = {
                             onDelete(initialTask)
                             openDialog.value = false
-                            onBack()
+                            onBack
                         }) {
                             Text("Delete", color = Color.Red)
                         }
@@ -420,7 +454,13 @@ fun EditTaskContent(
             // Attachments section
             Button(
                 onClick = {
-                    filePickerLauncher.launch("*/*") // Allow any file type
+                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "*/*"
+                        putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                    }
+                    filePickerLauncher.launch(intent)
                 },
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally), shape = RoundedCornerShape(6.dp),
@@ -434,38 +474,53 @@ fun EditTaskContent(
                 Text("Add Attachment")
             }
 
-            Text("Attachments: (${attachments.size})")
-            LazyRow {
-                itemsIndexed(attachments) { index, uri ->
+            // Attachment list
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Attachments: (${attachments.size})")
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .padding(4.dp)
-                            .background(
-                                Color.LightGray.copy(alpha = 0.3f),
-                                RoundedCornerShape(4.dp)
-                            )
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = getFileNameFromUri(context, uri),
-                            modifier = Modifier.clickable {
-                                openFile(context, uri)
-                            },
-                            fontSize = 14.sp,
-                            color = Color.DarkGray
-                        )
+                        itemsIndexed(attachments) { index, uri ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .background(
+                                        Color.LightGray.copy(alpha = 0.3f),
+                                        RoundedCornerShape(4.dp)
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = getFileNameFromUri(context, uri),
+                                    modifier = Modifier.clickable {
+                                        openFile(context, uri)
+                                    },
+                                    fontSize = 14.sp,
+                                    color = Color.DarkGray
+                                )
 
-                        Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(onClick = {
-                            attachments.remove(uri)
-                        }) {
-                            Icon(Icons.Default.Close, contentDescription = "Remove Attachment")
+                                Spacer(modifier = Modifier.width(4.dp))
+                                IconButton(onClick = {
+                                    attachments.remove(uri)
+                                }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Remove Attachment")
+                                }
+                            }
                         }
                     }
                 }
             }
+
+
 
 
             // Save button
@@ -491,7 +546,6 @@ fun EditTaskContent(
                         )
 
                         onSave(updatedTask)
-                        onBack()
                     }
                 },
                 colors = ButtonDefaults.buttonColors(
