@@ -132,22 +132,69 @@ fun AddTaskScreen(onBack: () -> Unit) {
     )
 
     // File picker launcher
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetMultipleContents(),
-        onResult = { uris: List<Uri> ->
-            uris.forEach { uri ->
-                try {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                } catch (_: SecurityException) {
 
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val intent = result.data
+            if (intent != null) {
+
+                val uri = intent.data
+                if (uri != null) {
+                    try {
+
+                        context.contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                        )
+                        attachments.add(uri)
+                    } catch (e: SecurityException) {
+                        Log.e("FilePermission", "Failed to persist URI permission", e)
+                    }
                 }
+
+
+
+                /*
+                val clipData = intent.clipData
+                if (clipData != null) {
+                    for (i in 0 until clipData.itemCount) {
+                        val uri = clipData.getItemAt(i).uri
+                        try {
+                            context.contentResolver.takePersistableUriPermission(
+                                uri,
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                            )
+                            attachments.add(uri)
+                        } catch (e: SecurityException) {
+                            Log.e("FilePermission", "Failed to persist URI permission", e)
+                        }
+                    }
+                }
+                */
             }
-            attachments.addAll(uris)
         }
-    )
+    }
+
+
+
+//    val filePickerLauncher = rememberLauncherForActivityResult(
+//        contract = ActivityResultContracts.GetMultipleContents(),
+//        onResult = { uris: List<Uri> ->
+//            uris.forEach { uri ->
+//                try {
+//                    context.contentResolver.takePersistableUriPermission(
+//                        uri,
+//                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+//                    )
+//                } catch (_: SecurityException) {
+//
+//                }
+//            }
+//            attachments.addAll(uris)
+//        }
+//    )
 
     var isError = remember { mutableStateOf(false) }
 
@@ -280,7 +327,13 @@ fun AddTaskScreen(onBack: () -> Unit) {
             // Attachments section
             Button(
                 onClick = {
-                    filePickerLauncher.launch("*/*") // Allow any file type
+                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "*/*"
+                        putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
+                        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                    }
+                    filePickerLauncher.launch(intent)
                 },
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally), shape = RoundedCornerShape(6.dp),
