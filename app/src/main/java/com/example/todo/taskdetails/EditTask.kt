@@ -256,26 +256,6 @@ fun EditTaskContent(
                         Log.e("FilePermission", "Failed to persist URI permission", e)
                     }
                 }
-
-
-
-                /*
-                val clipData = intent.clipData
-                if (clipData != null) {
-                    for (i in 0 until clipData.itemCount) {
-                        val uri = clipData.getItemAt(i).uri
-                        try {
-                            context.contentResolver.takePersistableUriPermission(
-                                uri,
-                                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                            )
-                            attachments.add(uri)
-                        } catch (e: SecurityException) {
-                            Log.e("FilePermission", "Failed to persist URI permission", e)
-                        }
-                    }
-                }
-                */
             }
         }
     }
@@ -314,7 +294,7 @@ fun EditTaskContent(
                         TextButton(onClick = {
                             onDelete(initialTask)
                             openDialog.value = false
-                            onBack()
+                            onBack
                         }) {
                             Text("Delete", color = Color.Red)
                         }
