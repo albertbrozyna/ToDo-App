@@ -168,9 +168,22 @@ fun EditTaskContent(
     var expanded = remember { mutableStateOf(false) }
 
     val notify = remember { mutableStateOf(initialTask.notify) }
+
     val attachments = remember {
         mutableStateListOf<Uri>().apply {
-            addAll(initialTask.attachments.map { Uri.parse(it) })
+            initialTask.attachments.forEach { uriString ->
+                val uri = Uri.parse(uriString)
+                add(uri)
+
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (e: SecurityException) {
+                    Log.w("Permission", "Could not re-grant URI permission", e)
+                }
+            }
         }
     }
 
@@ -465,7 +478,7 @@ fun EditTaskContent(
                         addCategory(Intent.CATEGORY_OPENABLE)
                         type = "*/*"
                         putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
-                        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
                     }
                     filePickerLauncher.launch(intent)
                 },
@@ -526,6 +539,8 @@ fun EditTaskContent(
                     }
                 }
             }
+
+
 
 
             // Save button
