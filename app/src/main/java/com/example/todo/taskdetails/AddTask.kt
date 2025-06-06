@@ -136,6 +136,7 @@ fun AddTaskScreen(onBack: () -> Unit) {
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        // If file is picked
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             val intent = result.data
             if (intent != null) {
@@ -150,51 +151,12 @@ fun AddTaskScreen(onBack: () -> Unit) {
                         )
                         attachments.add(uri)
                     } catch (e: SecurityException) {
-                        Log.e("FilePermission", "Failed to persist URI permission", e)
+                        Log.e("permissions", "p", e)
                     }
                 }
-
-
-
-                /*
-                val clipData = intent.clipData
-                if (clipData != null) {
-                    for (i in 0 until clipData.itemCount) {
-                        val uri = clipData.getItemAt(i).uri
-                        try {
-                            context.contentResolver.takePersistableUriPermission(
-                                uri,
-                                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                            )
-                            attachments.add(uri)
-                        } catch (e: SecurityException) {
-                            Log.e("FilePermission", "Failed to persist URI permission", e)
-                        }
-                    }
-                }
-                */
             }
         }
     }
-
-
-
-//    val filePickerLauncher = rememberLauncherForActivityResult(
-//        contract = ActivityResultContracts.GetMultipleContents(),
-//        onResult = { uris: List<Uri> ->
-//            uris.forEach { uri ->
-//                try {
-//                    context.contentResolver.takePersistableUriPermission(
-//                        uri,
-//                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-//                    )
-//                } catch (_: SecurityException) {
-//
-//                }
-//            }
-//            attachments.addAll(uris)
-//        }
-//    )
 
     var isError = remember { mutableStateOf(false) }
 
