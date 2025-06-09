@@ -95,6 +95,7 @@ fun TopBar(
                     expanded = menuExpanded.value,
                     onDismissRequest = { menuExpanded.value = false }
                 ) {
+                    // Sorting and deleting tasks
                     DropdownMenuItem(
                         text = { Text("Sort task ascending by time") },
                         onClick = {

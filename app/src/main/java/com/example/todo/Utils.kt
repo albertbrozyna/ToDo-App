@@ -118,10 +118,11 @@ class ReminderReceiver : BroadcastReceiver() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
 
+            // get title and id
             val title = intent.getStringExtra("title") ?: "Task Reminder"
-
             val taskId = intent.getIntExtra("taskId", -1)
 
+            // After click open main activity
             val openIntent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                 putExtra("taskId", taskId)
@@ -163,6 +164,7 @@ fun scheduleNotification(context: Context, timeInMillis: Long,taskId: Int, title
 }
 
 fun getAlarmPendingIntent(context: Context, taskId: Int, title: String): PendingIntent {
+    // Intent to sent to broadcast
     val intent = Intent(context, ReminderReceiver::class.java).apply {
         putExtra("title", title)
         putExtra("taskId", taskId)

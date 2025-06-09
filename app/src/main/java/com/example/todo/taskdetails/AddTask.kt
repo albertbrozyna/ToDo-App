@@ -5,6 +5,8 @@ import android.app.TimePickerDialog
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import android.webkit.MimeTypeMap
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -50,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import com.example.todo.DatabaseProvider
 import com.example.todo.R
 import com.example.todo.Task
@@ -63,6 +66,8 @@ import com.example.todo.ui.theme.prussianBlue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -134,67 +139,39 @@ fun AddTaskScreen(onBack: () -> Unit) {
     // File picker launcher
 
     val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            val intent = result.data
-            if (intent != null) {
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val mimeType = context.contentResolver.getType(uri)
+                val extension = MimeTypeMap.getSingleton()
+                    .getExtensionFromMimeType(mimeType) ?: "bin"
 
-                val uri = intent.data
-                if (uri != null) {
-                    try {
+                val fileName =
+                    "${uri.lastPathSegment?.substringAfterLast("/")}_${System.currentTimeMillis()}.$extension"
+                val outputFile = File(context.filesDir, fileName)
 
-                        context.contentResolver.takePersistableUriPermission(
-                            uri,
-                            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                        )
-                        attachments.add(uri)
-                    } catch (e: SecurityException) {
-                        Log.e("FilePermission", "Failed to persist URI permission", e)
+                inputStream?.use { input ->
+                    FileOutputStream(outputFile).use { output ->
+                        input.copyTo(output)
                     }
                 }
 
+                val localUri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.provider",
+                    outputFile
+                )
 
+                attachments.add(localUri)
 
-                /*
-                val clipData = intent.clipData
-                if (clipData != null) {
-                    for (i in 0 until clipData.itemCount) {
-                        val uri = clipData.getItemAt(i).uri
-                        try {
-                            context.contentResolver.takePersistableUriPermission(
-                                uri,
-                                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                            )
-                            attachments.add(uri)
-                        } catch (e: SecurityException) {
-                            Log.e("FilePermission", "Failed to persist URI permission", e)
-                        }
-                    }
-                }
-                */
+            } catch (e: Exception) {
+                Toast.makeText(context, "Błąd podczas kopiowania załącznika", Toast.LENGTH_SHORT)
+                    .show()
             }
         }
     }
-
-
-
-//    val filePickerLauncher = rememberLauncherForActivityResult(
-//        contract = ActivityResultContracts.GetMultipleContents(),
-//        onResult = { uris: List<Uri> ->
-//            uris.forEach { uri ->
-//                try {
-//                    context.contentResolver.takePersistableUriPermission(
-//                        uri,
-//                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-//                    )
-//                } catch (_: SecurityException) {
-//
-//                }
-//            }
-//            attachments.addAll(uris)
-//        }
-//    )
 
     var isError = remember { mutableStateOf(false) }
 
@@ -327,13 +304,7 @@ fun AddTaskScreen(onBack: () -> Unit) {
             // Attachments section
             Button(
                 onClick = {
-                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                        addCategory(Intent.CATEGORY_OPENABLE)
-                        type = "*/*"
-                        putExtra(Intent.EXTRA_ALLOW_MULTIPLE, false)
-                        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-                    }
-                    filePickerLauncher.launch(intent)
+                    filePickerLauncher.launch("*/*")
                 },
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally), shape = RoundedCornerShape(6.dp),
@@ -377,6 +348,11 @@ fun AddTaskScreen(onBack: () -> Unit) {
                             Spacer(modifier = Modifier.width(8.dp))
                             IconButton(onClick = {
                                 attachments.remove(uri)
+
+                                val file = File(context.filesDir, "${uri.lastPathSegment?.substringAfterLast("/")}")
+                                if (file.exists()) {
+                                    file.delete()
+                                }
                             }) {
                                 Icon(Icons.Default.Close, contentDescription = "Remove Attachment")
                             }
